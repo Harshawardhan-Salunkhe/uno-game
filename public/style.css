@@ -194,4 +194,67 @@ button:hover {
 
 .color-option:hover {
     transform: scale(1.2);
+
+}
+
+/* --- MOBILE RESPONSIVENESS --- */
+@media (max-width: 600px) {
+
+    /* 1. Make the Game Area fit the screen */
+    #game-area {
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 10px;
+        overflow: hidden; /* Prevent scrolling */
+    }
+
+    /* 2. Resize the Center Table (Draw Pile & Top Card) */
+    .center-table {
+        transform: scale(0.8); /* Shrink it slightly */
+        margin: 10px auto;
+        gap: 15px;
+    }
+
+    /* 3. Adjust the Top Info Bar */
+    .top-bar {
+        width: 100%;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .top-bar .glass-panel {
+        font-size: 0.8rem; /* Smaller text */
+        padding: 5px 10px;
+    }
+
+    /* 4. Make the UNO Button easier to tap */
+    #uno-btn {
+        width: 60px !important;
+        height: 60px !important;
+        font-size: 14px !important;
+        border-radius: 50%; /* Make it round */
+    }
+
+    /* 5. Fix the Player Hand (Scrollable) */
+    .hand-container {
+        width: 100%;
+        overflow-x: auto; /* Allow horizontal scrolling */
+        justify-content: flex-start; /* Start cards from left */
+        padding-bottom: 10px;
+    }
+
+    .card {
+        width: 60px;  /* Smaller cards */
+        height: 90px;
+        font-size: 24px;
+        flex-shrink: 0; /* Don't squish cards */
+    }
+    
+    /* 6. Adjust Lobby for Mobile */
+    #lobby {
+        width: 90%;
+        padding: 20px;
+    }
 }
