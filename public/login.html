@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-panel">
+        <h1>UNO LOGIN</h1>
+        <input type="text" id="user" placeholder="Username">
+        <input type="password" id="pass" placeholder="Password">
+        <button class="btn-primary" onclick="login()">Login</button>
+        <p>New here? <a href="register.html" style="color:cyan;">Register</a></p>
+    </div>
+
+    <script>
+        async function login() {
+            const u = document.getElementById('user').value;
+            const p = document.getElementById('pass').value;
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ username: u, password: p })
+            });
+            const data = await res.json();
+            if (data.success) {
+                localStorage.setItem('unoUser', data.username); // Save user to browser
+                window.location.href = 'index.html'; // Go to game
+            } else {
+                alert(data.message);
+            }
+        }
+    </script>
+</body>
+</html>
