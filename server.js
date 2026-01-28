@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require("socket.io");
 const path = require('path');
 const fs = require('fs');
+let drawPenalty = 0;
 
 const app = express();
 const server = http.createServer(app);
@@ -122,65 +123,89 @@ io.on('connection', (socket) => {
 
     socket.on('playCard', ({ cardIndex, chosenColor }) => {
         const player = players.find(p => p.id === socket.id);
+        
+        // Basic Turn Check
         if (!gameRunning || players[turnIndex].id !== socket.id) return;
 
         const card = player.hand[cardIndex];
         const top = discardPile[discardPile.length - 1];
-        
-        // Validation
-        let valid = (card.color === currentColor) || (card.value === top.value) || (card.color === 'Black');
-        if (!valid) return;
 
-        // --- UNO PENALTY CHECK ---
-        // If you have 2 cards, you are about to have 1. You MUST have said UNO.
+        // --- 1. VALIDATION LOGIC (UPDATED FOR STACKING) ---
+        let isValid = false;
+
+        // SCENARIO A: A Penalty is active (Stacking Mode)
+        if (drawPenalty > 0) {
+            // Can stack a +4 on anything
+            if (card.value.includes('Draw4')) isValid = true;
+            
+            // Can stack a +2 ONLY if it matches color OR is another +2
+            else if (card.value === 'Draw2') {
+                // Allow if it matches the active color (e.g. Yellow) OR the top card is a Draw2
+                if (card.color === currentColor || top.value === 'Draw2') {
+                    isValid = true;
+                }
+            }
+        } 
+        // SCENARIO B: Normal Play (No penalty active)
+        else {
+            if (card.color === currentColor || card.value === top.value || card.color === 'Black') {
+                isValid = true;
+            }
+        }
+
+        if (!isValid) return; // Ignore invalid clicks silently
+
+        // --- 2. UNO CHECK (Your existing code) ---
         let penalty = false;
         if (player.hand.length === 2 && !player.saidUno) {
-            penalty = true; // Mark for punishment
+            penalty = true;
         }
 
         // Stop Timer
         if(turnTimer) { clearTimeout(turnTimer); turnTimer = null; }
 
-        // Execute Play
+        // --- 3. EXECUTE PLAY ---
         player.hand.splice(cardIndex, 1);
         discardPile.push(card);
-        player.saidUno = false; // Reset flag
+        player.saidUno = false; 
 
-        // --- APPLY PENALTY ---
+        // Apply "Forgot UNO" Penalty
         if (penalty) {
             checkDeck();
-            player.hand.push(deck.pop(), deck.pop()); // Add 2 cards
+            player.hand.push(deck.pop(), deck.pop());
             socket.emit('message', "⚠️ YOU FORGOT TO SAY UNO! +2 Cards Penalty!");
             io.emit('message', `🔔 ${player.name} forgot UNO and drew 2 penalty cards!`);
         }
 
-        // --- ACTION LOGIC ---
+        // --- 4. ACTION & STACKING LOGIC ---
         let skip = 0;
-        if (card.value === 'Reverse') { 
-            direction *= -1; 
-            if(players.filter(p => !p.finished).length === 2) skip=1; 
-        }
-        else if (card.value === 'Skip') skip = 1;
-        else if (card.value === 'Draw2') { 
-            skip=1; 
-            let vIndex = turnIndex;
-            do { vIndex = (vIndex + direction + players.length) % players.length; } while(players[vIndex].finished);
-            checkDeck();
-            players[vIndex].hand.push(deck.pop(),deck.pop()); 
-        }
-        else if (card.value.includes('Wild')) { 
-            currentColor = chosenColor; 
-            if(card.value.includes('Draw4')) { 
-                skip=1; 
-                let vIndex = turnIndex;
-                do { vIndex = (vIndex + direction + players.length) % players.length; } while(players[vIndex].finished);
-                checkDeck();
-                players[vIndex].hand.push(deck.pop(),deck.pop(),deck.pop(),deck.pop()); 
-            }
-        }
-        if (card.color !== 'Black') currentColor = card.color;
 
-        // --- WINNER LOGIC ---
+        // Handle Color Changes First
+        if (card.color === 'Black') {
+            currentColor = chosenColor; // Set the specific color (e.g. Yellow)
+        } else {
+            currentColor = card.color;
+        }
+
+        // Handle Card Effects
+        if (card.value === 'Reverse') {
+            direction *= -1;
+            // In 2-player game, Reverse acts like Skip
+            if(players.filter(p => !p.finished).length === 2) skip = 1;
+        }
+        else if (card.value === 'Skip') {
+            skip = 1; // Standard Skip
+        }
+        else if (card.value === 'Draw2') {
+            drawPenalty += 2; // Add to the stack! 
+            // NOTE: We do NOT set skip=1. The next player gets a chance to stack.
+        }
+        else if (card.value.includes('Draw4')) {
+            drawPenalty += 4; // Add to the stack!
+            // NOTE: We do NOT set skip=1. Next player can stack.
+        }
+
+        // --- 5. WINNER LOGIC (Your existing code) ---
         if (player.hand.length === 0) {
             player.finished = true;
             winners.push({ name: player.name, rank: winners.length + 1 });
@@ -195,15 +220,42 @@ io.on('connection', (socket) => {
             }
         }
 
+        // Advance turn (skip will only be 1 if it was a Skip/Reverse card)
         advanceTurn(skip);
         updateGameState();
     });
 
     socket.on('drawCard', () => {
+        // 1. Basic Validation
         if (players[turnIndex].id !== socket.id) return;
-        checkDeck();
-
         const player = players.find(p => p.id === socket.id);
+
+        // --- NEW: STACKING PENALTY LOGIC ---
+        // If there is a stack (e.g. +2, +4, +6), the player takes them ALL now.
+        if (drawPenalty > 0) {
+            checkDeck(); // Ensure deck is ready
+            
+            // Loop to give ALL the penalty cards
+            for (let i = 0; i < drawPenalty; i++) {
+                if (deck.length === 0) checkDeck(); // Refill mid-loop if needed
+                player.hand.push(deck.pop());
+            }
+
+            // Notify everyone
+            io.emit('message', `💥 ${player.name} took the hit! (+${drawPenalty} cards)`);
+            
+            // Reset everything
+            drawPenalty = 0; 
+            io.to(player.id).emit('yourHand', player.hand); // Update their screen
+            
+            advanceTurn(); // Their turn ends immediately (no 5s timer)
+            updateGameState();
+            return; // STOP HERE! Don't let them do a normal draw.
+        }
+        // ------------------------------------
+
+        // --- YOUR EXISTING NORMAL DRAW LOGIC ---
+        checkDeck();
         const newCard = deck.pop();
         player.hand.push(newCard);
         io.to(player.id).emit('yourHand', player.hand);
@@ -266,4 +318,5 @@ function updateGameState() {
 }
 
 const PORT = process.env.PORT || 3000;
+
 server.listen(PORT, () => console.log(`Server Ready on port ${PORT}`));
