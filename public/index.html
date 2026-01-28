@@ -74,6 +74,7 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="animations.js"></script>
     <script>
         const username = localStorage.getItem('unoUser');
         if (!username) window.location.href = 'login.html';
@@ -146,6 +147,20 @@
         });
 
         socket.on('gameState', (state) => {
+            const topCard = state.topCard;
+            
+            // We use a global variable to remember the last card so we don't animate the same one twice
+            if (window.lastAnimatedCard !== topCard.color + topCard.value) {
+                window.lastAnimatedCard = topCard.color + topCard.value; // Remember this card
+
+                // 2. Trigger animation based on card type
+                if (topCard.value === 'draw4') playAnimation('DRAW_4');
+                else if (topCard.value === 'draw2') playAnimation('DRAW_2');
+                else if (topCard.value === 'reverse') playAnimation('REVERSE');
+                else if (topCard.value === 'skip') playAnimation('SKIP');
+                else if (topCard.color === 'wild' && topCard.value !== 'draw4') playAnimation('WILD');
+            }
+                
             if(countdownInterval) { clearInterval(countdownInterval); document.getElementById('countdown').innerText = ""; }
 
             document.getElementById('lobby').style.display = 'none';
@@ -209,5 +224,6 @@
 </body>
 
 </html>
+
 
 
