@@ -1,0 +1,208 @@
+/* =========================================
+   1. THE "RED ROOM" CASINO BACKGROUND
+   ========================================= */
+body {
+    /* The deep red vignette look */
+    background: radial-gradient(circle, #8b0000 0%, #2b0000 90%, #000000 100%);
+    color: white;
+    font-family: 'Arial Rounded MT Bold', 'Helvetica Rounded', Arial, sans-serif;
+    margin: 0;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* =========================================
+   2. THE 3D GAME TABLE
+   ========================================= */
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    perspective: 1200px; /* Stronger 3D effect */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* The Center Pile (Where cards are played) */
+#center-pile {
+    position: absolute;
+    top: 45%; 
+    left: 50%;
+    transform: translate(-50%, -50%) rotateX(25deg); /* Tilted on the table */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+/* =========================================
+   3. "REAL" UNO CARD DESIGN
+   ========================================= */
+/* This makes the square div look like a glossy card */
+.card {
+    width: 90px;
+    height: 135px;
+    border-radius: 12px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 50px;
+    font-weight: bold;
+    color: white;
+    text-shadow: 2px 2px 0px rgba(0,0,0,0.5); /* Shadow on the number */
+    box-shadow: -2px 5px 15px rgba(0,0,0,0.5); /* Shadow under the card */
+    transition: all 0.2s ease;
+    cursor: pointer;
+    user-select: none;
+    background-color: white; /* Fallback */
+    border: 6px solid white; /* The classic white border */
+    overflow: hidden; /* Keeps the oval inside */
+}
+
+/* The "Oval" behind the number (Classic UNO look) */
+.card::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 70%;
+    background: rgba(255, 255, 255, 0.2); /* Faint oval shine */
+    border-radius: 50% 50% 40% 40% / 50%;
+    top: 15%;
+    transform: rotate(-45deg);
+    z-index: 0;
+}
+
+/* Small number in the corner (Like real cards) */
+.card::after {
+    content: attr(data-value); /* This grabs the number/text automatically */
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+/* Card Colors - Using Gradients for "Glossy" look */
+.card.red { background: linear-gradient(135deg, #ff5555 0%, #cc0000 100%); }
+.card.blue { background: linear-gradient(135deg, #5555ff 0%, #0000cc 100%); }
+.card.green { background: linear-gradient(135deg, #55aa55 0%, #008800 100%); }
+.card.yellow { background: linear-gradient(135deg, #ffcc00 0%, #ffaa00 100%); }
+
+/* Wild Cards (Rainbow/Black) */
+.card.wild { 
+    background: conic-gradient(from 180deg, red, yellow, green, blue);
+    border-color: gold; 
+    text-shadow: 0 0 5px black;
+}
+
+/* The "Back" of the card (For opponents) */
+/* We use a black card with a red oval to simulate the back */
+.player-cards-preview .card {
+    background: #111;
+    color: transparent; /* Hide the number */
+    border: 2px solid white;
+    width: 50px; /* Smaller for opponents */
+    height: 75px;
+}
+.player-cards-preview .card::before {
+    background: #ff0000; /* Red oval on back */
+    opacity: 1;
+    transform: rotate(45deg);
+    width: 60%;
+    height: 40%;
+    top: 30%;
+    left: 20%;
+}
+
+/* =========================================
+   4. HOVER & PLAYING ANIMATIONS
+   ========================================= */
+.card:hover {
+    transform: translateY(-30px) scale(1.1) rotate(0deg) !important;
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.6);
+    z-index: 100;
+}
+
+/* Your Hand (Fan Effect) */
+#my-hand {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 10px;
+    z-index: 50;
+}
+
+#my-hand .card {
+    margin-right: -45px; /* Overlap them */
+    transform-origin: bottom center;
+}
+
+/* =========================================
+   5. OTHER PLAYERS & UI
+   ========================================= */
+.player-seat {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.5s ease;
+}
+
+.player-avatar {
+    width: 60px;
+    height: 60px;
+    background: #333;
+    border: 3px solid white;
+    border-radius: 50%;
+    box-shadow: 0 5px 15px black;
+    margin-bottom: 5px;
+    background-image: url('https://cdn-icons-png.flaticon.com/512/149/149071.png'); /* Generic User Icon */
+    background-size: cover;
+}
+
+.player-name {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 14px;
+    color: white;
+}
+
+/* Buttons (Draw / Uno) */
+#controls {
+    position: absolute;
+    bottom: 220px;
+    right: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.game-btn {
+    padding: 15px 30px;
+    border-radius: 50px;
+    border: none;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 5px 0 rgba(0,0,0,0.5);
+    transition: 0.1s;
+}
+
+#draw-btn { background: #3498db; color: white; }
+#uno-btn { background: #e74c3c; color: white; animation: pulse 1.5s infinite; }
+#uno-btn:hover { background: #c0392b; }
+
+@keyframes pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(231, 76, 60, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(231, 76, 60, 0); }
+}
