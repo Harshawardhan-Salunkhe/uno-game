@@ -22,7 +22,7 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
 
     <style>
-        /* New Styles for Leaderboard */
+        /* Leaderboard Styles */
         #leaderboard-modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.9); 
             display: none; flex-direction: column; justify-content: center; align-items: center; 
@@ -35,16 +35,44 @@
         .gold { border: 2px solid gold; color: gold; }
         .silver { border: 2px solid silver; color: silver; }
         .bronze { border: 2px solid #cd7f32; color: #cd7f32; }
+
+        /* Menu Styles */
+        #lobby-code-input {
+            text-transform: uppercase; 
+            padding: 10px; 
+            width: 120px; 
+            text-align: center; 
+            font-size: 20px; 
+            color: black; 
+            border-radius: 5px; 
+            border: none;
+        }
     </style>
 </head>
 <body>
 
-    <div id="lobby" class="glass-panel">
-        <h1>BATTLE LOBBY</h1>
+    <div id="menu-screen" class="glass-panel" style="display: flex; flex-direction: column; gap: 15px;">
+        <h1>UNO BATTLE</h1>
         <h3 id="welcome-msg">Welcome...</h3>
-        <div id="p-list" style="text-align:left; margin: 20px 0;"></div>
-        <button class="btn-success" onclick="startGame()">START MATCH</button>
-        <button class="btn-warn" onclick="logout()" style="margin-top:10px;">Logout</button>
+        
+        <button class="btn-success" onclick="createLobby()">CREATE LOBBY</button>
+        
+        <div style="display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 10px;">
+            <input type="text" id="lobby-code-input" placeholder="CODE" maxlength="6">
+            <button class="btn-warn" onclick="joinLobby()">JOIN</button>
+        </div>
+        
+        <button class="btn-warn" onclick="logout()" style="margin-top:20px; background: #444;">LOGOUT</button>
+    </div>
+
+    <div id="lobby-waiting" class="glass-panel" style="display: none;">
+        <h3>ROOM CODE:</h3>
+        <h1 id="lobby-code-display" style="font-size: 50px; color: gold; letter-spacing: 5px; margin: 10px 0; user-select: text;">Loading...</h1>
+        <p>Share this code with friends!</p>
+        
+        <div id="p-list" style="margin: 20px 0; width: 100%;"></div>
+        
+        <button id="start-btn" class="btn-success" onclick="startGame()">START GAME</button>
     </div>
 
     <div id="game-area" style="display:none;">
@@ -54,13 +82,13 @@
                 <small id="direction-text">CLOCKWISE</small>
                 <div id="countdown" style="color:orange; font-weight:bold; height:20px;"></div>
             </div>
-            <button id="uno-btn" class="btn-warn" style="width:auto; height: 60px; font-size:20px;" onclick="socket.emit('sayUno')">UNO!</button>
+            <button id="uno-btn" class="btn-warn" style="width:auto; height: 60px; font-size:20px;" onclick="sayUno()">UNO!</button>
         </div>
 
         <div class="center-table">
-            <div class="card" onclick="socket.emit('drawCard')" 
+            <div class="card" onclick="drawCard()" 
                  style="background-image: url('cards/card_back.png'); background-size: contain; background-repeat: no-repeat; background-position: center; border: 2px dashed rgba(255,255,255,0.3);">
-            </div>
+                 </div>
             
             <div id="top-card" class="card"></div>
             
@@ -84,8 +112,7 @@
         <h1 style="font-size: 50px; margin-bottom: 20px;">GAME OVER</h1>
         <div id="ranking-list"></div>
         <div style="margin-top: 30px;">
-            <button class="btn-success" onclick="playAgain()">PLAY AGAIN</button>
-            <button class="btn-warn" onclick="quitGame()">QUIT</button>
+            <button class="btn-warn" onclick="quitGame()">BACK TO MENU</button>
         </div>
     </div>
 
@@ -106,20 +133,44 @@
         const socket = io();
         let pendingCardIndex = null;
         let countdownInterval = null;
+        let myLobbyCode = null; // STORES THE ROOM CODE
 
-        socket.on('connect', () => { socket.emit('joinGame', username); });
+        // Note: We do NOT emit 'joinGame' on connect anymore.
+        // We wait for the user to click Create or Join.
 
-        // ACTIONS
-        function startGame() { socket.emit('startGame'); }
-        function logout() { localStorage.removeItem('unoUser'); window.location.href = 'login.html'; }
-        
-        function playAgain() { 
-            document.getElementById('leaderboard-modal').style.display = 'none';
-            socket.emit('playAgain'); 
+        // --- MENU ACTIONS ---
+
+        function createLobby() {
+            socket.emit('createLobby', username);
         }
-        function quitGame() {
+
+        function joinLobby() {
+            const code = document.getElementById('lobby-code-input').value.trim().toUpperCase();
+            if (code.length !== 6) {
+                alert("Please enter a valid 6-letter code!");
+                return;
+            }
+            socket.emit('joinLobby', { code, username });
+        }
+
+        function logout() {
             localStorage.removeItem('unoUser');
             window.location.href = 'login.html';
+        }
+
+        // --- GAME ACTIONS (UPDATED: Sending Lobby Code) ---
+
+        function startGame() {
+            if(!myLobbyCode) return;
+            socket.emit('startGame', myLobbyCode);
+        }
+
+        function drawCard() {
+            socket.emit('drawCard', myLobbyCode);
+        }
+
+        function sayUno() {
+            socket.emit('sayUno', myLobbyCode);
         }
 
         function attemptPlay(index, card) {
@@ -127,19 +178,43 @@
                 pendingCardIndex = index;
                 document.getElementById('color-modal').style.display = 'flex';
             } else {
-                socket.emit('playCard', { cardIndex: index, chosenColor: null });
+                // Must send CODE and card info
+                socket.emit('playCard', { code: myLobbyCode, cardIndex: index, chosenColor: null });
             }
         }
+
         function resolveWild(color) {
-            socket.emit('playCard', { cardIndex: pendingCardIndex, chosenColor: color });
+            socket.emit('playCard', { code: myLobbyCode, cardIndex: pendingCardIndex, chosenColor: color });
             document.getElementById('color-modal').style.display = 'none';
         }
 
-        // --- EVENTS ---
+        function quitGame() {
+            window.location.reload(); // Quick way to return to main menu
+        }
+
+        // --- SOCKET EVENTS ---
+
+        socket.on('lobbyCreated', (code) => {
+            myLobbyCode = code;
+            document.getElementById('menu-screen').style.display = 'none';
+            document.getElementById('lobby-waiting').style.display = 'flex';
+            document.getElementById('lobby-code-display').innerText = code;
+        });
+
+        socket.on('joinedLobby', (code) => {
+            myLobbyCode = code;
+            document.getElementById('menu-screen').style.display = 'none';
+            document.getElementById('lobby-waiting').style.display = 'flex';
+            document.getElementById('lobby-code-display').innerText = code;
+        });
+
+        socket.on('error', (msg) => {
+            alert(msg);
+        });
 
         socket.on('updatePlayerList', (players) => {
             document.getElementById('p-list').innerHTML = players.map(p => `
-                <div style="padding:5px; border-bottom:1px solid #444; display:flex; justify-content:space-between;">
+                <div style="padding:10px; border-bottom:1px solid #444; display:flex; justify-content:space-between; font-size: 18px;">
                     <span>👤 ${p.name}</span>
                     ${p.finished ? '<span style="color:gold;">🏆 Finished</span>' : ''}
                 </div>`).join('');
@@ -162,12 +237,6 @@
             }, 1000);
         });
 
-        socket.on('resetLobby', () => {
-            document.getElementById('leaderboard-modal').style.display = 'none';
-            document.getElementById('game-area').style.display = 'none';
-            document.getElementById('lobby').style.display = 'flex';
-        });
-
         socket.on('gameState', (state) => {
             const topCard = state.topCard;
             
@@ -175,7 +244,6 @@
             if (window.lastAnimatedCard !== topCard.color + topCard.value) {
                 window.lastAnimatedCard = topCard.color + topCard.value; 
 
-                // Note: Checking strictly for your specific values (adjust if needed)
                 if (topCard.value.includes('Draw4')) playAnimation('DRAW_4');
                 else if (topCard.value === 'Draw2') playAnimation('DRAW_2');
                 else if (topCard.value === 'Reverse') playAnimation('REVERSE');
@@ -185,7 +253,9 @@
                 
             if(countdownInterval) { clearInterval(countdownInterval); document.getElementById('countdown').innerText = ""; }
 
-            document.getElementById('lobby').style.display = 'none';
+            // Switch to Game Screen
+            document.getElementById('menu-screen').style.display = 'none';
+            document.getElementById('lobby-waiting').style.display = 'none';
             document.getElementById('game-area').style.display = 'flex';
 
             const isMe = state.currentPlayer === socket.id;
@@ -198,18 +268,16 @@
             unoBtn.style.boxShadow = isMe ? "0 0 15px red" : "none";
             unoBtn.style.transform = isMe ? "scale(1.1)" : "scale(1)";
 
-            // --- 2. UPDATED TOP CARD (IMAGE LOGIC) ---
+            // --- IMAGE LOGIC (TOP CARD) ---
             const topDiv = document.getElementById('top-card');
-            
-            // Construct Filename: Red_7.png or Black_WildDraw4.png
-            // Uses underscore (_) as requested
+            // Uses underscore (_) for filenames: e.g. Red_7.png
             let fileName = `${state.topCard.color}_${state.topCard.value.replace(' ', '')}.png`;
             
             topDiv.style.backgroundImage = `url('cards/${fileName}')`;
-            topDiv.innerText = ""; // Remove text
-            topDiv.className = "card"; // Reset class
+            topDiv.innerText = ""; 
+            topDiv.className = "card"; 
             
-            // Update Active Color Dot
+            // Active Color Dot
             const dotColor = state.currentColor === 'Black' ? 'gray' : 
                              (state.currentColor === 'Blue' ? '#5555ff' : 
                              (state.currentColor === 'Red' ? '#ff5555' : 
@@ -224,10 +292,8 @@
                 const el = document.createElement('div');
                 el.className = 'card';
                 
-                // --- 3. UPDATED HAND CARDS (IMAGE LOGIC) ---
-                // Construct Filename: Red_7.png or Black_WildDraw4.png
+                // --- IMAGE LOGIC (HAND) ---
                 let fileName = `${card.color}_${card.value.replace(' ', '')}.png`;
-                
                 el.style.backgroundImage = `url('cards/${fileName}')`;
                 
                 el.onclick = () => attemptPlay(index, card);
@@ -235,7 +301,6 @@
             });
         });
 
-        // --- GAME OVER / RANKINGS ---
         socket.on('gameOver', (winners) => {
             const modal = document.getElementById('leaderboard-modal');
             const list = document.getElementById('ranking-list');
@@ -259,4 +324,3 @@
     </script>
 </body>
 </html>
-
