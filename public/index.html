@@ -87,6 +87,11 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="animations.js"></script>
     <script>
+        if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js')
+            .then(() => console.log('Service Worker Registered'))
+            .catch(err => console.log('SW Failed:', err));
+    }
         const username = localStorage.getItem('unoUser');
         if (!username) window.location.href = 'login.html';
         document.getElementById('welcome-msg').innerText = "Player: " + username;
@@ -235,6 +240,7 @@
 </body>
 
 </html>
+
 
 
 
