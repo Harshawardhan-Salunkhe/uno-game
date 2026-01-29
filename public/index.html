@@ -82,18 +82,26 @@
 
             /* 2. HAND CONTAINER (Pinned Fixed to Bottom) */
             .hand-container {
-                position: fixed !important; 
-                bottom: 0 !important;
-                left: 0 !important;
-                width: 100% !important;
-                height: 70px !important; 
-                padding: 0 !important;
-                margin: 0 !important;
-                justify-content: center !important;
-                align-items: flex-end !important;
-                z-index: 100 !important;
-                background: rgba(0,0,0,0.2) !important; 
-            }
+          position: fixed !important;
+          bottom: 0 !important;
+          left: 0 !important;
+          width: 100% !important;
+          height: 70px !important;
+
+          /* This makes justify-content and align-items work */
+          display: flex !important;
+
+          /* This centers the items horizontally (Left to Right) */
+          justify-content: center !important;
+
+          /* This pushes items to the bottom edge of the 70px height */
+          align-items: flex-end !important;
+
+          padding: 0 !important;
+          margin: 0 !important;
+          z-index: 100 !important;
+          background: rgba(0, 0, 0, 0.2) !important;
+        }
 
             /* 3. CARDS IN HAND ONLY (Small & Overlapping) */
             .hand-container .card {
@@ -355,3 +363,4 @@
     </script>
 </body>
 </html>
+
