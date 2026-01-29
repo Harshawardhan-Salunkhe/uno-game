@@ -2,91 +2,60 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>UNO BATTLE ROYALE</title>
-    
+    <title>UNO BATTLE</title>
     <link rel="manifest" href="manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="casino.css">
 
-    <meta name="theme-color" content="#8b0000">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="application-name" content="UNO Battle">
-    <link rel="icon" sizes="192x192" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
-    <link rel="icon" sizes="512x512" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="UNO Battle">
-    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
-
     <style>
-        /* --- VISUAL FIXES --- */
+        /* --- LAYOUT FIXES --- */
         #menu-screen, #lobby-waiting {
             display: flex; flex-direction: column !important; align-items: center; justify-content: center; gap: 20px;
             width: 90%; max-width: 400px; padding: 30px; margin: auto; text-align: center;
         }
-
         #lobby-code-input {
             text-transform: uppercase; padding: 12px; width: 140px; text-align: center; 
             font-size: 22px; color: black; font-weight: bold; border-radius: 8px; border: none; outline: none;
         }
 
-        /* --- NEW: IN-GAME PLAYER SIDEBAR --- */
+        /* --- IMPROVED PLAYER SIDEBAR --- */
         #game-sidebar {
             position: absolute;
-            left: 10px;
-            top: 80px; /* Below the top bar */
-            bottom: 160px; /* Above the hand */
-            width: 140px;
-            background: rgba(0, 0, 0, 0.4); /* Translucent Black */
-            backdrop-filter: blur(5px); /* Glass effect */
-            border-radius: 10px;
-            padding: 10px;
+            left: 0;
+            top: 70px; /* Right below header */
+            bottom: auto; /* Let it grow naturally */
+            max-height: 50vh; /* Don't cover entire screen */
+            width: 120px;
+            background: rgba(0, 0, 0, 0.6); 
+            border-radius: 0 10px 10px 0; /* Rounded only on right */
+            padding: 8px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             overflow-y: auto;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            pointer-events: none; /* Let clicks pass through if needed */
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
             z-index: 50;
+            transition: transform 0.3s ease;
         }
 
         .sidebar-item {
-            display: flex;
-            flex-direction: column;
             background: rgba(255, 255, 255, 0.1);
-            padding: 8px;
-            border-radius: 6px;
-            font-size: 14px;
+            padding: 6px;
+            border-radius: 4px;
+            font-size: 12px;
             color: white;
-            transition: all 0.2s ease;
+            text-align: left;
         }
-
-        /* Highlight the person whose turn it is */
         .sidebar-item.active-turn {
-            background: rgba(255, 215, 0, 0.3); /* Gold Tint */
-            border: 1px solid gold;
-            transform: scale(1.05);
+            background: rgba(255, 215, 0, 0.3);
+            border-left: 3px solid gold;
         }
-
-        .sidebar-name { font-weight: bold; margin-bottom: 2px; }
-        .sidebar-count { font-size: 12px; color: #ccc; }
-
-        /* Mobile Adjustment: Make sidebar smaller on phones */
-        @media (max-width: 600px) {
-            #game-sidebar {
-                width: 100px;
-                top: 70px;
-                bottom: 140px;
-            }
-            .sidebar-name { font-size: 12px; }
-            .sidebar-count { font-size: 10px; }
-        }
+        .sidebar-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         /* Leaderboard Modal */
         #leaderboard-modal {
-            position: fixed; inset: 0; background: rgba(0,0,0,0.9); 
+            position: fixed; inset: 0; background: rgba(0,0,0,0.95); 
             display: none; flex-direction: column; justify-content: center; align-items: center; 
             z-index: 2000;
         }
@@ -95,14 +64,12 @@
             border-radius: 10px; display: flex; justify-content: space-between; font-size: 20px;
         }
         .gold { border: 2px solid gold; color: gold; }
-        .silver { border: 2px solid silver; color: silver; }
-        .bronze { border: 2px solid #cd7f32; color: #cd7f32; }
     </style>
 </head>
 <body>
 
     <div id="menu-screen" class="glass-panel" style="display: flex;">
-        <h1 style="font-size: 32px; margin-bottom: 0;">UNO BATTLE</h1>
+        <h1 style="font-size: 32px; margin: 0;">UNO BATTLE</h1>
         <h3 id="welcome-msg" style="margin-top: 5px; opacity: 0.8;">Welcome...</h3>
         <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.3); margin: 10px 0;"></div>
         <button class="btn-success" onclick="createLobby()" style="width: 100%; font-size: 18px;">CREATE LOBBY</button>
@@ -116,32 +83,25 @@
 
     <div id="lobby-waiting" class="glass-panel" style="display: none;">
         <div style="opacity: 0.8; font-size: 14px;">ROOM CODE</div>
-        <h1 id="lobby-code-display" style="font-size: 60px; color: gold; letter-spacing: 8px; margin: 0; line-height: 1; text-shadow: 0 0 10px rgba(0,0,0,0.5);">...</h1>
-        <p style="font-size: 14px; opacity: 0.7;">Share this code with your friends!</p>
-        <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.3); margin: 10px 0;"></div>
+        <h1 id="lobby-code-display" style="font-size: 60px; color: gold; margin: 0; letter-spacing: 5px;">...</h1>
+        <p style="font-size: 14px; opacity: 0.7;">Share this code with friends!</p>
         <div id="p-list" style="width: 100%; min-height: 50px;"></div>
         <button id="start-btn" class="btn-success" onclick="startGame()" style="width: 100%; font-size: 20px; padding: 15px;">START GAME</button>
     </div>
 
     <div id="game-area" style="display:none;">
-        
-        <div id="game-sidebar"></div>
-
-        <div class="top-bar">
-            <div class="glass-panel" style="padding: 10px; width:auto; min-width: 120px;">
-                <h3 id="turn-text" style="margin:0; font-size: 16px;">Waiting...</h3>
-                <small id="direction-text" style="color: #aaa;">CLOCKWISE</small>
-                <div id="countdown" style="color:orange; font-weight:bold; height:20px;"></div>
+        <div id="game-sidebar"></div> <div class="top-bar">
+            <div class="glass-panel" style="padding: 5px 15px; width:auto; min-width: 120px; text-align: center;">
+                <h3 id="turn-text" style="margin:0; font-size: 14px;">Waiting...</h3>
+                <div id="direction-text" style="color: #aaa; font-size: 10px;">CLOCKWISE</div>
             </div>
-            <button id="uno-btn" class="btn-warn" style="width:auto; height: 60px; font-size:20px; padding: 0 20px;" onclick="sayUno()">UNO!</button>
+            <button id="uno-btn" class="btn-warn" style="width:auto; height: 50px; font-size:16px; padding: 0 15px;" onclick="sayUno()">UNO!</button>
         </div>
 
         <div class="center-table">
-            <div class="card" onclick="drawCard()" 
-                 style="background-image: url('cards/card_back.png'); background-size: contain; background-repeat: no-repeat; background-position: center; border: 2px dashed rgba(255,255,255,0.3);">
-            </div>
+            <div class="card" onclick="drawCard()" style="background-image: url('cards/card_back.png'); background-size: contain; background-repeat: no-repeat; background-position: center; border: 2px dashed rgba(255,255,255,0.3);"></div>
             <div id="top-card" class="card"></div>
-            <div id="active-color-dot" style="width:40px; height:40px; border-radius:50%; background:gray; border:3px solid white; box-shadow: 0 0 15px black;"></div>
+            <div id="active-color-dot" style="width:30px; height:30px; border-radius:50%; background:gray; border:3px solid white; box-shadow: 0 0 10px black;"></div>
         </div>
 
         <div class="hand-container" id="my-hand"></div>
@@ -149,18 +109,18 @@
 
     <div id="color-modal">
         <div class="glass-panel" style="flex-direction: column;">
-            <h2 style="margin-bottom: 20px;">Pick a Color</h2>
-            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;">
+            <h2>Pick Color</h2>
+            <div style="display: flex; gap: 10px;">
                 <div class="color-option" style="background:red;" onclick="resolveWild('Red')"></div>
                 <div class="color-option" style="background:blue;" onclick="resolveWild('Blue')"></div>
-                <div class="color-option" style="background:#00aa00;" onclick="resolveWild('Green')"></div>
+                <div class="color-option" style="background:green;" onclick="resolveWild('Green')"></div>
                 <div class="color-option" style="background:orange;" onclick="resolveWild('Yellow')"></div>
             </div>
         </div>
     </div>
 
     <div id="leaderboard-modal">
-        <h1 style="font-size: 50px; margin-bottom: 20px;">GAME OVER</h1>
+        <h1 style="font-size: 40px; margin-bottom: 20px;">GAME OVER</h1>
         <div id="ranking-list"></div>
         <div style="margin-top: 30px;">
             <button class="btn-warn" onclick="quitGame()">BACK TO MENU</button>
@@ -170,9 +130,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="animations.js"></script>
     <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW Failed:', err));
-        }
+        if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(console.log);
 
         const username = localStorage.getItem('unoUser');
         if (!username) window.location.href = 'login.html';
@@ -180,22 +138,20 @@
 
         const socket = io();
         let pendingCardIndex = null;
-        let countdownInterval = null;
         let myLobbyCode = null; 
 
-        // MENU ACTIONS
         function createLobby() { socket.emit('createLobby', username); }
         function joinLobby() {
             const code = document.getElementById('lobby-code-input').value.trim().toUpperCase();
-            if (code.length !== 6) return alert("Please enter a valid 6-letter code!");
+            if (code.length !== 6) return alert("Invalid Code");
             socket.emit('joinLobby', { code, username });
         }
         function logout() { localStorage.removeItem('unoUser'); window.location.href = 'login.html'; }
-
-        // GAME ACTIONS
         function startGame() { if(myLobbyCode) socket.emit('startGame', myLobbyCode); }
         function drawCard() { socket.emit('drawCard', myLobbyCode); }
         function sayUno() { socket.emit('sayUno', myLobbyCode); }
+        function quitGame() { window.location.reload(); }
+        
         function attemptPlay(index, card) {
             if (card.color === 'Black') {
                 pendingCardIndex = index;
@@ -208,75 +164,54 @@
             socket.emit('playCard', { code: myLobbyCode, cardIndex: pendingCardIndex, chosenColor: color });
             document.getElementById('color-modal').style.display = 'none';
         }
-        function quitGame() { window.location.reload(); }
 
-        // SOCKET EVENTS
+        // --- SOCKET EVENTS ---
         socket.on('lobbyCreated', (code) => {
             myLobbyCode = code;
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('lobby-waiting').style.display = 'flex';
             document.getElementById('lobby-code-display').innerText = code;
         });
-
         socket.on('joinedLobby', (code) => {
             myLobbyCode = code;
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('lobby-waiting').style.display = 'flex';
             document.getElementById('lobby-code-display').innerText = code;
         });
-
         socket.on('error', (msg) => alert(msg));
         socket.on('updatePlayerList', (players) => {
             document.getElementById('p-list').innerHTML = players.map(p => `
-                <div style="background: rgba(0,0,0,0.3); padding:10px; margin-bottom: 5px; border-radius: 6px; display:flex; justify-content:space-between; align-items: center; font-size: 18px;">
+                <div style="background: rgba(0,0,0,0.3); padding:10px; margin-bottom: 5px; border-radius: 6px; display:flex; justify-content:space-between; align-items: center; font-size: 16px;">
                     <span style="font-weight: bold;">👤 ${p.name}</span>
-                    ${p.finished ? '<span style="color:gold;">🏆 Won</span>' : '<span style="color:#aaa; font-size:14px;">Ready</span>'}
+                    ${p.finished ? '<span style="color:gold;">🏆 Won</span>' : '<span style="color:#aaa; font-size:12px;">Ready</span>'}
                 </div>`).join('');
         });
         socket.on('message', (msg) => { if(msg.includes('STRICT') || msg.includes('shouted')) alert(msg); });
-
-        socket.on('timerStart', (seconds) => {
-            const el = document.getElementById('countdown');
-            let left = seconds;
-            el.innerText = `ACT FAST: ${left}s`;
-            if(countdownInterval) clearInterval(countdownInterval);
-            countdownInterval = setInterval(() => {
-                left--;
-                if(left <= 0) { el.innerText = ""; clearInterval(countdownInterval); }
-                else { el.innerText = `ACT FAST: ${left}s`; }
-            }, 1000);
-        });
 
         socket.on('gameState', (state) => {
             const topCard = state.topCard;
             if (window.lastAnimatedCard !== topCard.color + topCard.value) {
                 window.lastAnimatedCard = topCard.color + topCard.value; 
-                if (topCard.value.includes('Draw4')) playAnimation('DRAW_4');
-                else if (topCard.value === 'Draw2') playAnimation('DRAW_2');
-                else if (topCard.value === 'Reverse') playAnimation('REVERSE');
-                else if (topCard.value === 'Skip') playAnimation('SKIP');
-                else if (topCard.color === 'Black' && !topCard.value.includes('Draw4')) playAnimation('WILD');
+                // Only animate if it's a special card
+                if(['Draw2','Skip','Reverse'].includes(topCard.value) || topCard.value.includes('Draw4')) {
+                    if(typeof playAnimation === 'function') playAnimation(topCard.value.toUpperCase());
+                }
             }
                 
-            if(countdownInterval) { clearInterval(countdownInterval); document.getElementById('countdown').innerText = ""; }
-
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('lobby-waiting').style.display = 'none';
             document.getElementById('game-area').style.display = 'flex';
 
-            // --- 1. UPDATED TURN TEXT LOGIC ---
+            // --- TURN TEXT LOGIC ---
             const isMe = state.currentPlayer === socket.id;
-            
-            // Find the name of the current player from the new playerInfo array
             const currentPlayerObj = state.playerInfo.find(p => p.id === state.currentPlayer);
             const currentName = currentPlayerObj ? currentPlayerObj.name : "Unknown";
-
-            // If it's me, say "YOUR TURN". If not, say "Bob's TURN".
+            
             document.getElementById('turn-text').innerText = isMe ? "YOUR TURN" : `${currentName.toUpperCase()}'S TURN`;
             document.getElementById('turn-text').style.color = isMe ? "#38ef7d" : "white";
             document.getElementById('direction-text').innerText = state.direction;
 
-            // --- 2. NEW SIDEBAR UPDATES ---
+            // --- UPDATE SIDEBAR ---
             const sidebar = document.getElementById('game-sidebar');
             sidebar.innerHTML = "";
             state.playerInfo.forEach(p => {
@@ -284,22 +219,20 @@
                 sidebar.innerHTML += `
                     <div class="sidebar-item ${isActive ? 'active-turn' : ''}">
                         <div class="sidebar-name">${p.name} ${p.id === socket.id ? '(You)' : ''}</div>
-                        <div class="sidebar-count">🃏 ${p.cards} Cards</div>
+                        <div style="opacity:0.7;">🃏 ${p.cards} Cards</div>
                     </div>
                 `;
             });
 
+            // --- VISUALS ---
             const unoBtn = document.getElementById('uno-btn');
-            unoBtn.style.boxShadow = isMe ? "0 0 20px red" : "none";
-            unoBtn.style.transform = isMe ? "scale(1.1)" : "scale(1)";
             unoBtn.style.opacity = isMe ? "1" : "0.5";
 
             const topDiv = document.getElementById('top-card');
             let fileName = `${state.topCard.color}_${state.topCard.value.replace(' ', '')}.png`;
             topDiv.style.backgroundImage = `url('cards/${fileName}')`;
-            topDiv.innerText = ""; 
-            topDiv.className = "card"; 
-            
+            topDiv.innerText = ""; topDiv.className = "card"; 
+
             const dotColor = state.currentColor === 'Black' ? 'gray' : 
                              (state.currentColor === 'Blue' ? '#5555ff' : 
                              (state.currentColor === 'Red' ? '#ff5555' : 
@@ -325,10 +258,7 @@
             const list = document.getElementById('ranking-list');
             list.innerHTML = "";
             winners.forEach((p, i) => {
-                let rankClass = "";
-                if(i===0) rankClass = "gold";
-                else if(i===1) rankClass = "silver";
-                else if(i===2) rankClass = "bronze";
+                let rankClass = i===0 ? "gold" : "";
                 list.innerHTML += `
                     <div class="rank-item ${rankClass}">
                         <span>#${i+1} ${p.name}</span>
