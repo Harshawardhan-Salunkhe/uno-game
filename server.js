@@ -4,9 +4,6 @@ const { Server } = require("socket.io");
 const path = require('path');
 const fs = require('fs');
 
-// Global Game Variables
-let drawPenalty = 0;
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -14,7 +11,7 @@ const io = new Server(server);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- PERSISTENCE ---
+// --- PERSISTENCE (Users) ---
 const USERS_FILE = path.join(__dirname, 'users.json');
 function getUsers() {
     if (!fs.existsSync(USERS_FILE)) return [];
@@ -42,288 +39,249 @@ app.post('/api/login', (req, res) => {
     res.json(user ? { success: true, username: user.username } : { success: false, message: "Invalid credentials" });
 });
 
-// --- GAME STATE ---
-let players = [];
-let deck = [];
-let discardPile = [];
-let winners = []; 
-let turnIndex = 0;
-let direction = 1;
-let gameRunning = false;
-let currentColor = '';
-let turnTimer = null;
+// ==========================================================
+//  MULTI-LOBBY SYSTEM (THE NEW CORE)
+// ==========================================================
+const lobbies = {}; // Stores all active game rooms. Key = Room Code
 
-// --- HELPER FUNCTIONS ---
+// --- HELPER: Generate Code ---
+function generateLobbyCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+    return result;
+}
+
+// --- HELPER: Deck Creation ---
 function createDeck() {
-    deck = [];
+    let deck = [];
     const colors = ['Red', 'Blue', 'Green', 'Yellow'];
     const values = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'Skip', 'Reverse', 'Draw2'];
-    colors.forEach(c => values.forEach(v => { deck.push({color:c, value:v, type:'normal'}); if(v!=='0') deck.push({color:c, value:v, type:'normal'}); }));
-    for(let i=0; i<4; i++) { deck.push({color:'Black', value:'Wild', type:'wild'}); deck.push({color:'Black', value:'Wild Draw4', type:'wild'}); }
+    colors.forEach(c => values.forEach(v => { deck.push({color:c, value:v}); if(v!=='0') deck.push({color:c, value:v}); }));
+    for(let i=0; i<4; i++) { deck.push({color:'Black', value:'Wild'}); deck.push({color:'Black', value:'Wild Draw4'}); }
     return deck;
 }
-function shuffleDeck() { for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } }
-
-function checkDeck() {
-    if (deck.length < 2) { 
-        let top = discardPile.pop();
-        deck = discardPile;
-        discardPile = [top];
-        shuffleDeck();
-    }
-}
-
-function advanceTurn(skips=0) { 
-    if(turnTimer) { clearTimeout(turnTimer); turnTimer = null; }
-    let activePlayers = players.filter(p => !p.finished);
-    if (activePlayers.length === 0) return;
-
-    let steps = 1 + skips;
-    while(steps > 0) {
-        turnIndex = (turnIndex + direction + players.length) % players.length;
-        if (!players[turnIndex].finished) steps--;
-    }
-}
-
-function resetGame() {
-    gameRunning = false;
-    deck = [];
-    discardPile = [];
-    winners = [];
-    drawPenalty = 0;
-    players.forEach(p => { p.hand = []; p.finished = false; p.saidUno = false; });
-}
+function shuffle(deck) { for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; } }
 
 // --- SOCKET LOGIC ---
 io.on('connection', (socket) => {
     console.log('Connected:', socket.id);
 
-    socket.on('joinGame', (name) => {
-        if (gameRunning) return socket.emit('error', 'Game in progress');
-        if (players.find(p => p.name === name)) return;
-        players.push({ id: socket.id, name, hand: [], finished: false, saidUno: false });
-        io.emit('updatePlayerList', players);
+    // 1. CREATE LOBBY
+    socket.on('createLobby', (username) => {
+        const code = generateLobbyCode();
+        lobbies[code] = {
+            code: code,
+            players: [{ id: socket.id, name: username, hand: [], finished: false, saidUno: false }],
+            deck: [],
+            discardPile: [],
+            turnIndex: 0,
+            direction: 1,
+            gameRunning: false,
+            drawPenalty: 0,
+            currentColor: '',
+            turnTimer: null
+        };
+        
+        socket.join(code); // Socket.io Room feature
+        socket.emit('lobbyCreated', code);
+        io.to(code).emit('updatePlayerList', lobbies[code].players);
     });
 
-    socket.on('startGame', () => {
-        if (players.length < 2) return;
-        createDeck(); shuffleDeck();
-        players.forEach(p => {
-            p.hand = deck.splice(0, 7);
+    // 2. JOIN LOBBY
+    socket.on('joinLobby', ({ code, username }) => {
+        const lobby = lobbies[code];
+        if (!lobby) return socket.emit('error', 'Lobby not found!');
+        if (lobby.gameRunning) return socket.emit('error', 'Game already started!');
+        if (lobby.players.find(p => p.name === username)) return socket.emit('error', 'Name taken!');
+
+        lobby.players.push({ id: socket.id, name: username, hand: [], finished: false, saidUno: false });
+        socket.join(code);
+        
+        // Notify user they joined successfully
+        socket.emit('joinedLobby', code);
+        // Update everyone in the room
+        io.to(code).emit('updatePlayerList', lobby.players);
+    });
+
+    // 3. START GAME
+    socket.on('startGame', (code) => {
+        const lobby = lobbies[code];
+        if (!lobby || lobby.players.length < 2) return;
+
+        lobby.deck = createDeck();
+        shuffle(lobby.deck);
+        
+        lobby.players.forEach(p => {
+            p.hand = lobby.deck.splice(0, 7);
             p.finished = false;
             p.saidUno = false;
         });
-        discardPile = [deck.pop()];
-        while(discardPile[0].color === 'Black') { deck.unshift(discardPile.pop()); shuffleDeck(); discardPile.push(deck.pop()); }
-        currentColor = discardPile[0].color;
+
+        lobby.discardPile = [lobby.deck.pop()];
+        while(lobby.discardPile[0].color === 'Black') { 
+            lobby.deck.unshift(lobby.discardPile.pop()); 
+            shuffle(lobby.deck); 
+            lobby.discardPile.push(lobby.deck.pop()); 
+        }
         
-        winners = [];
-        gameRunning = true; 
-        turnIndex = 0; 
-        direction = 1;
-        updateGameState();
+        lobby.currentColor = lobby.discardPile[0].color;
+        lobby.gameRunning = true;
+        lobby.turnIndex = 0;
+        
+        updateGameState(code);
     });
 
-    socket.on('playCard', ({ cardIndex, chosenColor }) => {
-        const player = players.find(p => p.id === socket.id);
+    // 4. PLAY CARD
+    socket.on('playCard', ({ code, cardIndex, chosenColor }) => {
+        const lobby = lobbies[code];
+        if(!lobby || !lobby.gameRunning) return;
         
-        if (!gameRunning || players[turnIndex].id !== socket.id) return;
+        const player = lobby.players.find(p => p.id === socket.id);
+        if (lobby.players[lobby.turnIndex].id !== socket.id) return;
 
         const card = player.hand[cardIndex];
-        const top = discardPile[discardPile.length - 1];
+        const top = lobby.discardPile[lobby.discardPile.length - 1];
 
-        // --- VALIDATION ---
+        // VALIDATION
         let isValid = false;
-        if (drawPenalty > 0) {
+        if (lobby.drawPenalty > 0) {
             if (card.value.includes('Draw4')) isValid = true;
-            else if (card.value === 'Draw2') {
-                if (card.color === currentColor || top.value === 'Draw2') isValid = true;
-            }
+            else if (card.value === 'Draw2' && (card.color === lobby.currentColor || top.value === 'Draw2')) isValid = true;
         } else {
-            if (card.color === currentColor || card.value === top.value || card.color === 'Black') isValid = true;
+            if (card.color === lobby.currentColor || card.value === top.value || card.color === 'Black') isValid = true;
         }
 
         if (!isValid) return;
 
-        // --- UNO CHECK ---
-        let penalty = false;
-        if (player.hand.length === 2 && !player.saidUno) penalty = true;
-
-        if(turnTimer) { clearTimeout(turnTimer); turnTimer = null; }
+        // Clear Timer
+        if(lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; }
 
         player.hand.splice(cardIndex, 1);
-        discardPile.push(card);
-        player.saidUno = false; 
+        lobby.discardPile.push(card);
+        
+        // Handle Color
+        lobby.currentColor = (card.color === 'Black') ? chosenColor : card.color;
 
-        if (penalty) {
-            checkDeck();
-            player.hand.push(deck.pop(), deck.pop());
-            socket.emit('message', "⚠️ YOU FORGOT TO SAY UNO! +2 Cards Penalty!");
-            io.emit('message', `🔔 ${player.name} forgot UNO and drew 2 penalty cards!`);
-        }
-
-        // --- ACTION & STACKING ---
+        // Handle Effects
         let skip = 0;
-
-        if (card.color === 'Black') currentColor = chosenColor;
-        else currentColor = card.color;
-
         if (card.value === 'Reverse') {
-            direction *= -1;
-            if(players.filter(p => !p.finished).length === 2) skip = 1;
+            lobby.direction *= -1;
+            if(lobby.players.filter(p => !p.finished).length === 2) skip = 1;
         }
         else if (card.value === 'Skip') skip = 1;
-        else if (card.value === 'Draw2') drawPenalty += 2;
-        else if (card.value.includes('Draw4')) drawPenalty += 4;
+        else if (card.value === 'Draw2') lobby.drawPenalty += 2;
+        else if (card.value.includes('Draw4')) lobby.drawPenalty += 4;
 
-        // --- WINNER LOGIC ---
+        // WIN CONDITION
         if (player.hand.length === 0) {
             player.finished = true;
-            winners.push({ name: player.name, rank: winners.length + 1 });
-            io.emit('message', `🏆 ${player.name} finished Rank #${winners.length}!`);
-
-            const active = players.filter(p => !p.finished);
-            if (active.length <= 1) {
-                if (active.length === 1) winners.push({ name: active[0].name, rank: winners.length + 1 });
-                gameRunning = false;
-                io.emit('gameOver', winners);
+            const winners = lobby.players.filter(p => p.finished);
+            io.to(code).emit('message', `🏆 ${player.name} Finished!`);
+            
+            if (lobby.players.filter(p => !p.finished).length <= 1) {
+                lobby.gameRunning = false;
+                io.to(code).emit('gameOver', winners);
+                delete lobbies[code]; // Cleanup lobby after game
                 return;
             }
         }
 
-        advanceTurn(skip);
-        updateGameState();
+        advanceTurn(lobby, skip);
+        updateGameState(code);
     });
 
-    socket.on('drawCard', () => {
-        if (players[turnIndex].id !== socket.id) return;
-        const player = players.find(p => p.id === socket.id);
+    // 5. DRAW CARD
+    socket.on('drawCard', (code) => {
+        const lobby = lobbies[code];
+        if(!lobby || lobby.players[lobby.turnIndex].id !== socket.id) return;
+        const player = lobby.players.find(p => p.id === socket.id);
 
-        // --- STACKING PENALTY ---
-        if (drawPenalty > 0) {
-            checkDeck(); 
-            for (let i = 0; i < drawPenalty; i++) {
-                if (deck.length === 0) checkDeck(); 
-                player.hand.push(deck.pop());
+        // PENALTY DRAW
+        if (lobby.drawPenalty > 0) {
+            for(let i=0; i<lobby.drawPenalty; i++) {
+                if(lobby.deck.length === 0) refillDeck(lobby);
+                player.hand.push(lobby.deck.pop());
             }
-            io.emit('message', `💥 ${player.name} took the hit! (+${drawPenalty} cards)`);
-            drawPenalty = 0; 
+            lobby.drawPenalty = 0;
             io.to(player.id).emit('yourHand', player.hand);
-            advanceTurn(); 
-            updateGameState();
+            advanceTurn(lobby);
+            updateGameState(code);
             return;
         }
 
-        // --- NORMAL DRAW ---
-        checkDeck();
-        const newCard = deck.pop();
+        // NORMAL DRAW
+        if(lobby.deck.length === 0) refillDeck(lobby);
+        const newCard = lobby.deck.pop();
         player.hand.push(newCard);
         io.to(player.id).emit('yourHand', player.hand);
-
-        const top = discardPile[discardPile.length - 1];
-        const isPlayable = (newCard.color === currentColor) || (newCard.value === top.value) || (newCard.color === 'Black');
-
-        if (isPlayable) {
-            socket.emit('message', "Playable! Drop it in 5s or skip.");
-            socket.emit('timerStart', 5);
-            if(turnTimer) clearTimeout(turnTimer);
-            turnTimer = setTimeout(() => {
-                io.emit('message', `${player.name} hesitated! Next turn.`);
-                advanceTurn(); 
-                updateGameState();
-            }, 5000);
-        } else {
-            socket.emit('message', "No luck. Next turn.");
-            advanceTurn();
-            updateGameState();
-        }
-    });
-
-    socket.on('sayUno', () => {
-        const player = players.find(p => p.id === socket.id);
-        if (player.hand.length === 2) {
-            player.saidUno = true;
-            io.emit('message', `🔔 ${player.name} shouted UNO!`);
-        }
-    });
-
-    socket.on('playAgain', () => {
-        resetGame();
-        io.emit('resetLobby');
-        io.emit('updatePlayerList', players);
-    });
-
-    // --- NEW: ROBUST DISCONNECT LOGIC ---
-    socket.on('disconnect', () => {
-        console.log(`[Disconnect] Player ${socket.id} left.`);
         
-        // 1. Find the player
-        const pIndex = players.findIndex(p => p.id === socket.id);
-        if (pIndex === -1) return; // Not a player
+        advanceTurn(lobby); // Simple rule: Draw passes turn immediately
+        updateGameState(code);
+    });
 
-        const leaverName = players[pIndex].name;
-        const wasTheirTurn = (pIndex === turnIndex);
-
-        // 2. Remove player
-        players.splice(pIndex, 1);
-
-        // 3. Handle Game Logic
-        if (!gameRunning) {
-            // Just update lobby
-            io.emit('updatePlayerList', players);
-        } else {
-            // Check if game ends (only 1 survivor left)
-            const activeSurvivors = players.filter(p => !p.finished);
-
-            if (activeSurvivors.length < 2) {
-                if (activeSurvivors.length === 1) {
-                     io.emit('message', `⚡ ${leaverName} quit. ${activeSurvivors[0].name} wins by default!`);
-                     io.emit('gameOver', [{ name: activeSurvivors[0].name, rank: 1 }]);
+    // 6. DISCONNECT & CLEANUP
+    socket.on('disconnect', () => {
+        // Find which lobby this socket belongs to
+        let foundCode = null;
+        for (const [code, lobby] of Object.entries(lobbies)) {
+            const pIndex = lobby.players.findIndex(p => p.id === socket.id);
+            if (pIndex !== -1) {
+                foundCode = code;
+                const player = lobby.players[pIndex];
+                const wasTurn = (pIndex === lobby.turnIndex);
+                
+                lobby.players.splice(pIndex, 1);
+                
+                if (lobby.players.length === 0) {
+                    delete lobbies[code]; // Delete empty lobby
                 } else {
-                     io.emit('resetLobby'); // Everyone left
+                    if (pIndex < lobby.turnIndex) lobby.turnIndex--;
+                    if (wasTurn) advanceTurn(lobby, 0);
+                    
+                    io.to(code).emit('message', `⚠️ ${player.name} disconnected.`);
+                    io.to(code).emit('updatePlayerList', lobby.players);
+                    updateGameState(code);
                 }
-                resetGame();
-                return;
+                break;
             }
-
-            // Game continues...
-            io.emit('message', `⚠️ ${leaverName} disconnected.`);
-
-            // Adjust Turn Index
-            // If the person who left was BEFORE the current player in the list, 
-            // the current player shifts down by 1, so we must decrease index.
-            if (pIndex < turnIndex) {
-                turnIndex--; 
-            }
-            
-            // Safety bounds
-            if (turnIndex >= players.length) turnIndex = 0;
-
-            // If it WAS their turn, the "next" person (who shifted into this slot) takes over immediately
-            if (wasTheirTurn) {
-                if(turnTimer) { clearTimeout(turnTimer); turnTimer = null; }
-                updateGameState();
-            } else {
-                // Just update UI to remove their avatar
-                updateGameState();
-            }
-            
-            // Update the visual list for everyone
-            io.emit('updatePlayerList', players);
         }
     });
 });
 
-function updateGameState() {
-    if(!gameRunning) return;
-    io.emit('gameState', {
-        topCard: discardPile[discardPile.length - 1],
-        currentColor,
-        currentPlayer: players[turnIndex].id,
-        direction: direction > 0 ? "CW" : "CCW"
+// --- UTILS ---
+function refillDeck(lobby) {
+    if (lobby.discardPile.length > 1) {
+        let top = lobby.discardPile.pop();
+        lobby.deck = lobby.discardPile;
+        lobby.discardPile = [top];
+        shuffle(lobby.deck);
+    }
+}
+
+function advanceTurn(lobby, skips=0) {
+    let steps = 1 + skips;
+    let active = lobby.players.filter(p => !p.finished);
+    if (active.length === 0) return;
+    
+    while(steps > 0) {
+        lobby.turnIndex = (lobby.turnIndex + lobby.direction + lobby.players.length) % lobby.players.length;
+        if (!lobby.players[lobby.turnIndex].finished) steps--;
+    }
+}
+
+function updateGameState(code) {
+    const lobby = lobbies[code];
+    if(!lobby || !lobby.gameRunning) return;
+    
+    io.to(code).emit('gameState', {
+        topCard: lobby.discardPile[lobby.discardPile.length - 1],
+        currentColor: lobby.currentColor,
+        currentPlayer: lobby.players[lobby.turnIndex].id,
+        direction: lobby.direction > 0 ? "CW" : "CCW"
     });
-    players.forEach(p => io.to(p.id).emit('yourHand', p.hand));
+    lobby.players.forEach(p => io.to(p.id).emit('yourHand', p.hand));
 }
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server Ready on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
