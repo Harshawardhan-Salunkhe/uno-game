@@ -81,24 +81,24 @@
         /* Push the Hand to the very bottom */
         .hand-container {
             bottom: 0px;
-            height: 95px; /* Limit height so it doesn't overlap table */
-            padding-bottom: 5px;
+            height: 95px !important; /* Limit height so it doesn't overlap table */
+            padding-bottom: 5px !important;
             align-items: flex-end; /* Align cards to bottom */
         }
 
         /* Shrink the Center Table (Draw/Discard Piles) & Move it Up */
         .center-table {
-            top: 40%; /* Move higher up */
-            transform: translate(-50%, -50%) scale(0.7); /* Shrink by 30% */
+            top: 50% !important; /* Move higher up */
+            transform: translate(-50%, -50%) scale(0.65) !important; /* Shrink by 30% */
         }
 
         /* Fix Sidebar overlap - Make it smaller */
         #game-sidebar {
-            top: 60px;
-            bottom: 100px; /* Stop before hitting the hand */
+            top: 60px !important;
+            bottom: 100px !important; /* Stop before hitting the hand */
             width: 100px;
             padding: 5px;
-            transform: scale(0.85); /* Shrink it slightly */
+            transform: scale(0.85) !important; /* Shrink it slightly */
             transform-origin: top left;
         }
 
@@ -366,5 +366,6 @@
     </script>
 </body>
 </html>
+
 
 
