@@ -19,16 +19,16 @@
             font-size: 22px; color: black; font-weight: bold; border-radius: 8px; border: none; outline: none;
         }
 
-        /* --- IMPROVED PLAYER SIDEBAR --- */
+        /* --- PLAYER SIDEBAR --- */
         #game-sidebar {
             position: absolute;
             left: 0;
-            top: 70px; /* Right below header */
-            bottom: auto; /* Let it grow naturally */
-            max-height: 50vh; /* Don't cover entire screen */
+            top: 70px; 
+            bottom: auto; 
+            max-height: 50vh; 
             width: 120px;
             background: rgba(0, 0, 0, 0.6); 
-            border-radius: 0 10px 10px 0; /* Rounded only on right */
+            border-radius: 0 10px 10px 0; 
             padding: 8px;
             display: flex;
             flex-direction: column;
@@ -53,7 +53,6 @@
         }
         .sidebar-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        /* Leaderboard Modal */
         #leaderboard-modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.95); 
             display: none; flex-direction: column; justify-content: center; align-items: center; 
@@ -90,7 +89,9 @@
     </div>
 
     <div id="game-area" style="display:none;">
-        <div id="game-sidebar"></div> <div class="top-bar">
+        <div id="game-sidebar"></div> 
+
+        <div class="top-bar">
             <div class="glass-panel" style="padding: 5px 15px; width:auto; min-width: 120px; text-align: center;">
                 <h3 id="turn-text" style="margin:0; font-size: 14px;">Waiting...</h3>
                 <div id="direction-text" style="color: #aaa; font-size: 10px;">CLOCKWISE</div>
@@ -179,6 +180,7 @@
             document.getElementById('lobby-code-display').innerText = code;
         });
         socket.on('error', (msg) => alert(msg));
+        
         socket.on('updatePlayerList', (players) => {
             document.getElementById('p-list').innerHTML = players.map(p => `
                 <div style="background: rgba(0,0,0,0.3); padding:10px; margin-bottom: 5px; border-radius: 6px; display:flex; justify-content:space-between; align-items: center; font-size: 16px;">
@@ -186,23 +188,44 @@
                     ${p.finished ? '<span style="color:gold;">🏆 Won</span>' : '<span style="color:#aaa; font-size:12px;">Ready</span>'}
                 </div>`).join('');
         });
+        
         socket.on('message', (msg) => { if(msg.includes('STRICT') || msg.includes('shouted')) alert(msg); });
+
+        // --- FIXED: 3-SECOND TIMER ANIMATION ---
+        let countdownInterval = null;
+        socket.on('timerStart', (seconds) => {
+            const el = document.getElementById('countdown');
+            let left = seconds;
+            el.innerText = `ACT FAST: ${left}s`;
+            if(countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => {
+                left--;
+                if(left <= 0) { el.innerText = ""; clearInterval(countdownInterval); }
+                else { el.innerText = `ACT FAST: ${left}s`; }
+            }, 1000);
+        });
 
         socket.on('gameState', (state) => {
             const topCard = state.topCard;
+            
+            // --- FIXED: ANIMATION LOGIC ---
             if (window.lastAnimatedCard !== topCard.color + topCard.value) {
                 window.lastAnimatedCard = topCard.color + topCard.value; 
-                // Only animate if it's a special card
-                if(['Draw2','Skip','Reverse'].includes(topCard.value) || topCard.value.includes('Draw4')) {
-                    if(typeof playAnimation === 'function') playAnimation(topCard.value.toUpperCase());
-                }
+
+                // Explicit Mapping to ensure correct keys (DRAW_4 not DRAW4)
+                if (topCard.value.includes('Draw4')) playAnimation('DRAW_4');
+                else if (topCard.value === 'Draw2') playAnimation('DRAW_2');
+                else if (topCard.value === 'Reverse') playAnimation('REVERSE');
+                else if (topCard.value === 'Skip') playAnimation('SKIP');
+                else if (topCard.color === 'Black' && !topCard.value.includes('Draw4')) playAnimation('WILD');
             }
                 
+            if(countdownInterval) { clearInterval(countdownInterval); document.getElementById('countdown').innerText = ""; }
+
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('lobby-waiting').style.display = 'none';
             document.getElementById('game-area').style.display = 'flex';
 
-            // --- TURN TEXT LOGIC ---
             const isMe = state.currentPlayer === socket.id;
             const currentPlayerObj = state.playerInfo.find(p => p.id === state.currentPlayer);
             const currentName = currentPlayerObj ? currentPlayerObj.name : "Unknown";
@@ -211,7 +234,7 @@
             document.getElementById('turn-text').style.color = isMe ? "#38ef7d" : "white";
             document.getElementById('direction-text').innerText = state.direction;
 
-            // --- UPDATE SIDEBAR ---
+            // --- SIDEBAR UPDATE ---
             const sidebar = document.getElementById('game-sidebar');
             sidebar.innerHTML = "";
             state.playerInfo.forEach(p => {
@@ -224,7 +247,6 @@
                 `;
             });
 
-            // --- VISUALS ---
             const unoBtn = document.getElementById('uno-btn');
             unoBtn.style.opacity = isMe ? "1" : "0.5";
 
