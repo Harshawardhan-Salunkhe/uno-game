@@ -11,6 +11,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    touch-action: none; 
+    user-select: none;
 }
 
 /* Glassmorphism Containers */
@@ -258,3 +260,4 @@ button:hover {
         padding: 20px;
     }
 }
+
