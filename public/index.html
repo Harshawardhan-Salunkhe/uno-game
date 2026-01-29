@@ -22,7 +22,38 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
 
     <style>
-        /* Leaderboard Styles */
+        /* --- VISUAL FIXES --- */
+        
+        /* Ensures the Menu and Lobby stack vertically and look centered */
+        #menu-screen, #lobby-waiting {
+            display: flex; /* This will be toggled by JS, but we define layout here */
+            flex-direction: column !important; /* Force vertical stacking */
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            
+            /* Box Styling */
+            width: 90%;
+            max-width: 400px;
+            padding: 30px;
+            margin: auto; /* Centers the box on screen */
+            text-align: center;
+        }
+
+        #lobby-code-input {
+            text-transform: uppercase; 
+            padding: 12px; 
+            width: 140px; 
+            text-align: center; 
+            font-size: 22px; 
+            color: black; 
+            font-weight: bold;
+            border-radius: 8px; 
+            border: none;
+            outline: none;
+        }
+
+        /* Leaderboard Modal */
         #leaderboard-modal {
             position: fixed; inset: 0; background: rgba(0,0,0,0.9); 
             display: none; flex-direction: column; justify-content: center; align-items: center; 
@@ -35,76 +66,74 @@
         .gold { border: 2px solid gold; color: gold; }
         .silver { border: 2px solid silver; color: silver; }
         .bronze { border: 2px solid #cd7f32; color: #cd7f32; }
-
-        /* Menu Styles */
-        #lobby-code-input {
-            text-transform: uppercase; 
-            padding: 10px; 
-            width: 120px; 
-            text-align: center; 
-            font-size: 20px; 
-            color: black; 
-            border-radius: 5px; 
-            border: none;
-        }
     </style>
 </head>
 <body>
 
-    <div id="menu-screen" class="glass-panel" style="display: flex; flex-direction: column; gap: 15px;">
-        <h1>UNO BATTLE</h1>
-        <h3 id="welcome-msg">Welcome...</h3>
+    <div id="menu-screen" class="glass-panel" style="display: flex;">
+        <h1 style="font-size: 32px; margin-bottom: 0;">UNO BATTLE</h1>
+        <h3 id="welcome-msg" style="margin-top: 5px; opacity: 0.8;">Welcome...</h3>
         
-        <button class="btn-success" onclick="createLobby()">CREATE LOBBY</button>
+        <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.3); margin: 10px 0;"></div>
+
+        <button class="btn-success" onclick="createLobby()" style="width: 100%; font-size: 18px;">CREATE LOBBY</button>
         
-        <div style="display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 10px;">
+        <p style="margin: 5px 0; opacity: 0.6;">- OR -</p>
+
+        <div style="display: flex; gap: 10px; justify-content: center; width: 100%;">
             <input type="text" id="lobby-code-input" placeholder="CODE" maxlength="6">
             <button class="btn-warn" onclick="joinLobby()">JOIN</button>
         </div>
         
-        <button class="btn-warn" onclick="logout()" style="margin-top:20px; background: #444;">LOGOUT</button>
+        <button class="btn-warn" onclick="logout()" style="margin-top:20px; background: #444; width: auto; font-size: 14px;">Log Out</button>
     </div>
 
     <div id="lobby-waiting" class="glass-panel" style="display: none;">
-        <h3>ROOM CODE:</h3>
-        <h1 id="lobby-code-display" style="font-size: 50px; color: gold; letter-spacing: 5px; margin: 10px 0; user-select: text;">Loading...</h1>
-        <p>Share this code with friends!</p>
+        <div style="opacity: 0.8; font-size: 14px;">ROOM CODE</div>
         
-        <div id="p-list" style="margin: 20px 0; width: 100%;"></div>
+        <h1 id="lobby-code-display" style="font-size: 60px; color: gold; letter-spacing: 8px; margin: 0; line-height: 1; text-shadow: 0 0 10px rgba(0,0,0,0.5);">...</h1>
         
-        <button id="start-btn" class="btn-success" onclick="startGame()">START GAME</button>
+        <p style="font-size: 14px; opacity: 0.7;">Share this code with your friends!</p>
+        
+        <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.3); margin: 10px 0;"></div>
+
+        <div id="p-list" style="width: 100%; min-height: 50px;"></div>
+        
+        <button id="start-btn" class="btn-success" onclick="startGame()" style="width: 100%; font-size: 20px; padding: 15px;">START GAME</button>
     </div>
 
     <div id="game-area" style="display:none;">
         <div class="top-bar">
-            <div class="glass-panel" style="padding: 10px; width:auto;">
-                <h3 id="turn-text">Waiting...</h3>
-                <small id="direction-text">CLOCKWISE</small>
+            <div class="glass-panel" style="padding: 10px; width:auto; min-width: 120px;">
+                <h3 id="turn-text" style="margin:0; font-size: 16px;">Waiting...</h3>
+                <small id="direction-text" style="color: #aaa;">CLOCKWISE</small>
                 <div id="countdown" style="color:orange; font-weight:bold; height:20px;"></div>
             </div>
-            <button id="uno-btn" class="btn-warn" style="width:auto; height: 60px; font-size:20px;" onclick="sayUno()">UNO!</button>
+            <button id="uno-btn" class="btn-warn" style="width:auto; height: 60px; font-size:20px; padding: 0 20px;" onclick="sayUno()">UNO!</button>
         </div>
 
         <div class="center-table">
             <div class="card" onclick="drawCard()" 
                  style="background-image: url('cards/card_back.png'); background-size: contain; background-repeat: no-repeat; background-position: center; border: 2px dashed rgba(255,255,255,0.3);">
-                 </div>
+            </div>
             
             <div id="top-card" class="card"></div>
             
-            <div id="active-color-dot" style="width:30px; height:30px; border-radius:50%; background:gray; border:2px solid white; box-shadow: 0 0 10px black;"></div>
+            <div id="active-color-dot" style="width:40px; height:40px; border-radius:50%; background:gray; border:3px solid white; box-shadow: 0 0 15px black;"></div>
         </div>
 
         <div class="hand-container" id="my-hand"></div>
     </div>
 
     <div id="color-modal">
-        <div class="glass-panel">
-            <h2>Pick a Color</h2>
-            <div class="color-option" style="background:red;" onclick="resolveWild('Red')"></div>
-            <div class="color-option" style="background:blue;" onclick="resolveWild('Blue')"></div>
-            <div class="color-option" style="background:#00aa00;" onclick="resolveWild('Green')"></div>
-            <div class="color-option" style="background:orange;" onclick="resolveWild('Yellow')"></div>
+        <div class="glass-panel" style="flex-direction: column;">
+            <h2 style="margin-bottom: 20px;">Pick a Color</h2>
+            <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center;">
+                <div class="color-option" style="background:red;" onclick="resolveWild('Red')"></div>
+                <div class="color-option" style="background:blue;" onclick="resolveWild('Blue')"></div>
+                <div class="color-option" style="background:#00aa00;" onclick="resolveWild('Green')"></div>
+                <div class="color-option" style="background:orange;" onclick="resolveWild('Yellow')"></div>
+            </div>
         </div>
     </div>
 
@@ -119,7 +148,6 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="animations.js"></script>
     <script>
-        // --- 1. PWA SERVICE WORKER REGISTRATION ---
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/sw.js')
                 .then(() => console.log('Service Worker Registered'))
@@ -133,13 +161,9 @@
         const socket = io();
         let pendingCardIndex = null;
         let countdownInterval = null;
-        let myLobbyCode = null; // STORES THE ROOM CODE
-
-        // Note: We do NOT emit 'joinGame' on connect anymore.
-        // We wait for the user to click Create or Join.
+        let myLobbyCode = null; 
 
         // --- MENU ACTIONS ---
-
         function createLobby() {
             socket.emit('createLobby', username);
         }
@@ -158,8 +182,7 @@
             window.location.href = 'login.html';
         }
 
-        // --- GAME ACTIONS (UPDATED: Sending Lobby Code) ---
-
+        // --- GAME ACTIONS ---
         function startGame() {
             if(!myLobbyCode) return;
             socket.emit('startGame', myLobbyCode);
@@ -178,7 +201,6 @@
                 pendingCardIndex = index;
                 document.getElementById('color-modal').style.display = 'flex';
             } else {
-                // Must send CODE and card info
                 socket.emit('playCard', { code: myLobbyCode, cardIndex: index, chosenColor: null });
             }
         }
@@ -189,11 +211,10 @@
         }
 
         function quitGame() {
-            window.location.reload(); // Quick way to return to main menu
+            window.location.reload(); 
         }
 
         // --- SOCKET EVENTS ---
-
         socket.on('lobbyCreated', (code) => {
             myLobbyCode = code;
             document.getElementById('menu-screen').style.display = 'none';
@@ -214,9 +235,9 @@
 
         socket.on('updatePlayerList', (players) => {
             document.getElementById('p-list').innerHTML = players.map(p => `
-                <div style="padding:10px; border-bottom:1px solid #444; display:flex; justify-content:space-between; font-size: 18px;">
-                    <span>👤 ${p.name}</span>
-                    ${p.finished ? '<span style="color:gold;">🏆 Finished</span>' : ''}
+                <div style="background: rgba(0,0,0,0.3); padding:10px; margin-bottom: 5px; border-radius: 6px; display:flex; justify-content:space-between; align-items: center; font-size: 18px;">
+                    <span style="font-weight: bold;">👤 ${p.name}</span>
+                    ${p.finished ? '<span style="color:gold;">🏆 Won</span>' : '<span style="color:#aaa; font-size:14px;">Ready</span>'}
                 </div>`).join('');
         });
 
@@ -240,10 +261,8 @@
         socket.on('gameState', (state) => {
             const topCard = state.topCard;
             
-            // Animation Check
             if (window.lastAnimatedCard !== topCard.color + topCard.value) {
                 window.lastAnimatedCard = topCard.color + topCard.value; 
-
                 if (topCard.value.includes('Draw4')) playAnimation('DRAW_4');
                 else if (topCard.value === 'Draw2') playAnimation('DRAW_2');
                 else if (topCard.value === 'Reverse') playAnimation('REVERSE');
@@ -253,7 +272,6 @@
                 
             if(countdownInterval) { clearInterval(countdownInterval); document.getElementById('countdown').innerText = ""; }
 
-            // Switch to Game Screen
             document.getElementById('menu-screen').style.display = 'none';
             document.getElementById('lobby-waiting').style.display = 'none';
             document.getElementById('game-area').style.display = 'flex';
@@ -263,21 +281,17 @@
             document.getElementById('turn-text').style.color = isMe ? "#38ef7d" : "white";
             document.getElementById('direction-text').innerText = state.direction;
 
-            // Highlight UNO Button
             const unoBtn = document.getElementById('uno-btn');
-            unoBtn.style.boxShadow = isMe ? "0 0 15px red" : "none";
+            unoBtn.style.boxShadow = isMe ? "0 0 20px red" : "none";
             unoBtn.style.transform = isMe ? "scale(1.1)" : "scale(1)";
+            unoBtn.style.opacity = isMe ? "1" : "0.5";
 
-            // --- IMAGE LOGIC (TOP CARD) ---
             const topDiv = document.getElementById('top-card');
-            // Uses underscore (_) for filenames: e.g. Red_7.png
             let fileName = `${state.topCard.color}_${state.topCard.value.replace(' ', '')}.png`;
-            
             topDiv.style.backgroundImage = `url('cards/${fileName}')`;
             topDiv.innerText = ""; 
             topDiv.className = "card"; 
             
-            // Active Color Dot
             const dotColor = state.currentColor === 'Black' ? 'gray' : 
                              (state.currentColor === 'Blue' ? '#5555ff' : 
                              (state.currentColor === 'Red' ? '#ff5555' : 
@@ -291,11 +305,8 @@
             hand.forEach((card, index) => {
                 const el = document.createElement('div');
                 el.className = 'card';
-                
-                // --- IMAGE LOGIC (HAND) ---
                 let fileName = `${card.color}_${card.value.replace(' ', '')}.png`;
                 el.style.backgroundImage = `url('cards/${fileName}')`;
-                
                 el.onclick = () => attemptPlay(index, card);
                 div.appendChild(el);
             });
@@ -305,13 +316,11 @@
             const modal = document.getElementById('leaderboard-modal');
             const list = document.getElementById('ranking-list');
             list.innerHTML = "";
-
             winners.forEach((p, i) => {
                 let rankClass = "";
                 if(i===0) rankClass = "gold";
                 else if(i===1) rankClass = "silver";
                 else if(i===2) rankClass = "bronze";
-
                 list.innerHTML += `
                     <div class="rank-item ${rankClass}">
                         <span>#${i+1} ${p.name}</span>
