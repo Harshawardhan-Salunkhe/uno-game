@@ -76,7 +76,7 @@ io.on('connection', (socket) => {
             turnIndex: 0,
             direction: 1,
             gameRunning: false,
-            drawPenalty: 0,
+            drawPenalty: 0, // Tracks the stack (0, 2, 4, 6...)
             currentColor: '',
             turnTimer: null
         };
@@ -127,7 +127,7 @@ io.on('connection', (socket) => {
         updateGameState(code);
     });
 
-    // 4. PLAY CARD
+    // 4. PLAY CARD (STACKING LOGIC IS HERE)
     socket.on('playCard', ({ code, cardIndex, chosenColor }) => {
         const lobby = lobbies[code];
         if(!lobby || !lobby.gameRunning) return;
@@ -138,21 +138,32 @@ io.on('connection', (socket) => {
         const card = player.hand[cardIndex];
         const top = lobby.discardPile[lobby.discardPile.length - 1];
 
-        // VALIDATION
+        // --- VALIDATION WITH STACKING ---
         let isValid = false;
+
         if (lobby.drawPenalty > 0) {
-            if (card.value.includes('Draw4')) isValid = true;
-            else if (card.value === 'Draw2' && (card.color === lobby.currentColor || top.value === 'Draw2')) isValid = true;
+            // STACKING MODE: Must play +4 or +2
+            if (card.value.includes('Draw4')) {
+                isValid = true; // Can always stack a +4
+            } else if (card.value === 'Draw2') {
+                // Can stack +2 on +2 (Color doesn't matter for stacking logic usually, but we check compatibility)
+                if (top.value === 'Draw2' || card.color === lobby.currentColor) {
+                    isValid = true;
+                }
+            }
         } else {
-            if (card.color === lobby.currentColor || card.value === top.value || card.color === 'Black') isValid = true;
+            // NORMAL MODE
+            if (card.color === lobby.currentColor || card.value === top.value || card.color === 'Black') {
+                isValid = true;
+            }
         }
 
-        if (!isValid) return;
+        if (!isValid) return; // Invalid move, ignore click.
 
-        // Clear Timer if they played in time
+        // Stop timer if they played
         if(lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; }
 
-        // --- UNO LOGIC ---
+        // UNO Check
         let penalty = false;
         if (player.hand.length === 2 && !player.saidUno) penalty = true;
 
@@ -168,15 +179,26 @@ io.on('connection', (socket) => {
 
         lobby.currentColor = (card.color === 'Black') ? chosenColor : card.color;
 
+        // --- EFFECTS & PENALTY ACCUMULATION ---
         let skip = 0;
+        
         if (card.value === 'Reverse') {
             lobby.direction *= -1;
             if(lobby.players.filter(p => !p.finished).length === 2) skip = 1;
         }
-        else if (card.value === 'Skip') skip = 1;
-        else if (card.value === 'Draw2') lobby.drawPenalty += 2;
-        else if (card.value.includes('Draw4')) lobby.drawPenalty += 4;
+        else if (card.value === 'Skip') {
+            skip = 1;
+        }
+        else if (card.value === 'Draw2') {
+            lobby.drawPenalty += 2;
+            console.log(`[Stack] ${player.name} added +2. Total: ${lobby.drawPenalty}`);
+        }
+        else if (card.value.includes('Draw4')) {
+            lobby.drawPenalty += 4;
+            console.log(`[Stack] ${player.name} added +4. Total: ${lobby.drawPenalty}`);
+        }
 
+        // Win Check
         if (player.hand.length === 0) {
             player.finished = true;
             const winners = lobby.players.filter(p => p.finished);
@@ -194,7 +216,7 @@ io.on('connection', (socket) => {
         updateGameState(code);
     });
 
-    // 5. DRAW CARD (FIXED WITH 3s TIMER)
+    // 5. DRAW CARD (HANDLES PENALTY & 3-SEC TIMER)
     socket.on('drawCard', (code) => {
         const lobby = lobbies[code];
         if(!lobby || !lobby.gameRunning) return;
@@ -202,16 +224,17 @@ io.on('connection', (socket) => {
 
         const player = lobby.players.find(p => p.id === socket.id);
 
-        // A. STACKING PENALTY (Take all cards immediately)
+        // A. STACKING PENALTY (Cannot play, must eat cards)
         if (lobby.drawPenalty > 0) {
+            console.log(`[Stack] ${player.name} taking penalty of ${lobby.drawPenalty}`);
             for(let i=0; i<lobby.drawPenalty; i++) {
                 if(lobby.deck.length === 0) refillDeck(lobby);
                 player.hand.push(lobby.deck.pop());
             }
             io.to(code).emit('message', `💥 ${player.name} took +${lobby.drawPenalty} cards!`);
-            lobby.drawPenalty = 0;
+            lobby.drawPenalty = 0; // Reset stack
             io.to(player.id).emit('yourHand', player.hand);
-            advanceTurn(lobby);
+            advanceTurn(lobby); // Turn ends immediately
             updateGameState(code);
             return;
         }
@@ -222,29 +245,27 @@ io.on('connection', (socket) => {
         player.hand.push(newCard);
         io.to(player.id).emit('yourHand', player.hand);
 
-        // --- CHECK IF PLAYABLE (THE FIX) ---
+        // --- CHECK IF PLAYABLE (3-SECOND TIMER) ---
         const top = lobby.discardPile[lobby.discardPile.length - 1];
         const isPlayable = (newCard.color === lobby.currentColor) || 
                            (newCard.value === top.value) || 
                            (newCard.color === 'Black');
 
         if (isPlayable) {
-            // 1. Tell user they have 3s
+            // Allow 3 seconds to play
             socket.emit('message', "Playable! Drop it in 3s!");
-            io.to(code).emit('timerStart', 3); // Start 3s visual timer for everyone
+            io.to(code).emit('timerStart', 3);
 
-            // 2. Start Server Timer
             if(lobby.turnTimer) clearTimeout(lobby.turnTimer);
             lobby.turnTimer = setTimeout(() => {
                 io.to(code).emit('message', `${player.name} hesitated! Next turn.`);
                 advanceTurn(lobby);
                 updateGameState(code);
-            }, 3000); // 3000ms = 3 Seconds
+            }, 3000);
 
-            // 3. Update state (show card) but DO NOT ADVANCE TURN yet
-            updateGameState(code);
+            updateGameState(code); // Update hand but don't change turn yet
         } else {
-            // Not playable? Pass immediately.
+            // Not playable, pass turn
             socket.emit('message', "No luck. Next turn.");
             advanceTurn(lobby);
             updateGameState(code);
@@ -301,7 +322,7 @@ function refillDeck(lobby) {
 }
 
 function advanceTurn(lobby, skips=0) {
-    if(lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; } // Safety Clear
+    if(lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; }
     
     let steps = 1 + skips;
     let active = lobby.players.filter(p => !p.finished);
@@ -322,6 +343,7 @@ function updateGameState(code) {
         currentColor: lobby.currentColor,
         currentPlayer: lobby.players[lobby.turnIndex].id,
         direction: lobby.direction > 0 ? "CW" : "CCW",
+        // SEND PLAYER INFO FOR SIDEBAR
         playerInfo: lobby.players.map(p => ({ 
             name: p.name, 
             cards: p.hand.length, 
