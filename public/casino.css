@@ -43,63 +43,39 @@ body {
    3. "REAL" UNO CARD DESIGN
    ========================================= */
 /* This makes the square div look like a glossy card */
+/* =========================================
+   3. "REAL" IMAGE CARD DESIGN
+   ========================================= */
 .card {
-    width: 90px;
-    height: 135px;
-    border-radius: 12px;
-    position: relative;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 50px;
-    font-weight: bold;
-    color: white;
-    text-shadow: 2px 2px 0px rgba(0,0,0,0.5); /* Shadow on the number */
-    box-shadow: -2px 5px 15px rgba(0,0,0,0.5); /* Shadow under the card */
-    transition: all 0.2s ease;
+    /* Adjust these based on your image size, usually 2:3 ratio */
+    width: 80px;  
+    height: 120px;
+    
+    /* Image Settings */
+    background-size: contain; /* or 'cover' */
+    background-position: center;
+    background-repeat: no-repeat;
+    
+    /* Remove old CSS colors/borders */
+    background-color: transparent !important;
+    border: none !important;
+    color: transparent !important; 
+    text-shadow: none !important;
+    
+    /* Physics/Feel */
+    transition: transform 0.2s ease, margin 0.2s ease;
     cursor: pointer;
-    user-select: none;
-    background-color: white; /* Fallback */
-    border: 6px solid white; /* The classic white border */
-    overflow: hidden; /* Keeps the oval inside */
+    filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.5)); /* Better shadow for transparent PNGs */
 }
 
-/* The "Oval" behind the number (Classic UNO look) */
-.card::before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 70%;
-    background: rgba(255, 255, 255, 0.2); /* Faint oval shine */
-    border-radius: 50% 50% 40% 40% / 50%;
-    top: 15%;
-    transform: rotate(-45deg);
-    z-index: 0;
+/* Remove the old white circle design */
+.card::before, .card::after { display: none; }
+
+/* Hover Effect */
+.card:hover {
+    transform: translateY(-20px) scale(1.1) !important;
+    z-index: 100;
 }
-
-/* Small number in the corner (Like real cards) */
-.card::after {
-    content: attr(data-value); /* This grabs the number/text automatically */
-    position: absolute;
-    top: 5px;
-    left: 5px;
-    font-size: 14px;
-    opacity: 0.8;
-}
-
-/* Card Colors - Using Gradients for "Glossy" look */
-.card.red { background: linear-gradient(135deg, #ff5555 0%, #cc0000 100%); }
-.card.blue { background: linear-gradient(135deg, #5555ff 0%, #0000cc 100%); }
-.card.green { background: linear-gradient(135deg, #55aa55 0%, #008800 100%); }
-.card.yellow { background: linear-gradient(135deg, #ffcc00 0%, #ffaa00 100%); }
-
-/* Wild Cards (Rainbow/Black) */
-.card.wild { 
-    background: conic-gradient(from 180deg, red, yellow, green, blue);
-    border-color: gold; 
-    text-shadow: 0 0 5px black;
-}
-
 /* The "Back" of the card (For opponents) */
 /* We use a black card with a red oval to simulate the back */
 .player-cards-preview .card {
