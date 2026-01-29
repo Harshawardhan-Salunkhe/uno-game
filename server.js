@@ -278,10 +278,19 @@ function updateGameState(code) {
         topCard: lobby.discardPile[lobby.discardPile.length - 1],
         currentColor: lobby.currentColor,
         currentPlayer: lobby.players[lobby.turnIndex].id,
-        direction: lobby.direction > 0 ? "CW" : "CCW"
+        direction: lobby.direction > 0 ? "CW" : "CCW",
+        
+        // --- NEW ADDITION: This sends the names & card counts ---
+        playerInfo: lobby.players.map(p => ({ 
+            name: p.name, 
+            cards: p.hand.length, 
+            id: p.id 
+        }))
     });
+    
     lobby.players.forEach(p => io.to(p.id).emit('yourHand', p.hand));
 }
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
