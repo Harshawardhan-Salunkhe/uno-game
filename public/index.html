@@ -81,35 +81,51 @@
             }
 
             /* 2. HAND CONTAINER (Pinned Fixed to Bottom) */
+           /* 2. HAND CONTAINER (Scrollable & Bottom Pinned) */
             .hand-container {
-          position: fixed !important;
-          bottom: 0 !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: 70px !important;
-
-          /* This makes justify-content and align-items work */
-          display: flex !important;
-
-          /* This centers the items horizontally (Left to Right) */
-          justify-content: center !important;
-
-          /* This pushes items to the bottom edge of the 70px height */
-          align-items: flex-end !important;
-
-          padding: 0 !important;
-          margin: 0 !important;
-          z-index: 100 !important;
-          background: rgba(0, 0, 0, 0.2) !important;
-        }
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: 85px !important; /* Touch-friendly height */
+                
+                /* FLEX SETTINGS */
+                display: flex !important;
+                align-items: flex-end !important;
+                
+                /* CRITICAL: Start from left to allow scrolling. 
+                   We use auto-margins on cards to center them instead. */
+                justify-content: flex-start !important; 
+                
+                /* ENABLE SCROLLING */
+                overflow-x: auto !important;
+                overflow-y: hidden !important;
+                
+                padding: 0 !important;
+                margin: 0 !important;
+                z-index: 100 !important;
+                background: rgba(0,0,0,0.2) !important;
+            }
 
             /* 3. CARDS IN HAND ONLY (Small & Overlapping) */
             .hand-container .card {
                 width: 45px !important;
                 height: 65px !important;
                 background-size: contain !important;
-                margin: 0 -12px 5px -12px !important;
-                flex-shrink: 0 !important;
+                margin: 0 -12px 5px -12px !important; /* Tight overlap */
+                flex-shrink: 0 !important; /* Prevent squishing */
+                position: relative !important;
+            }
+
+            /* --- THE CENTERING MAGIC --- */
+            /* This pushes the cards to the middle if there are few, 
+               but lets them scroll normally if there are many. */
+            .hand-container .card:first-child {
+                margin-left: auto !important;
+            }
+            .hand-container .card:last-child {
+                margin-right: auto !important;
+                padding-right: 20px !important; /* Adds breathing room at the end */
             }
 
             /* 4. SIDEBAR (Moved & Scaled) */
@@ -363,4 +379,5 @@
     </script>
 </body>
 </html>
+
 
