@@ -91,7 +91,6 @@ io.on('connection', (socket) => {
         if (!lobby) return socket.emit('error', 'Lobby not found!');
         if (lobby.gameRunning) return socket.emit('error', 'Game already started!');
         
-        // Prevent duplicate names
         if (lobby.players.find(p => p.name === username)) return socket.emit('error', 'Name taken!');
 
         lobby.players.push({ id: socket.id, name: username, hand: [], finished: false, saidUno: false });
@@ -150,23 +149,22 @@ io.on('connection', (socket) => {
 
         if (!isValid) return;
 
-        // --- UNO LOGIC FIXED HERE ---
+        // Clear Timer if they played in time
+        if(lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; }
+
+        // --- UNO LOGIC ---
         let penalty = false;
-        // If they are about to have 1 card (length 2 now -> 1 after play) AND didn't say UNO
-        if (player.hand.length === 2 && !player.saidUno) {
-            penalty = true;
-        }
+        if (player.hand.length === 2 && !player.saidUno) penalty = true;
 
         player.hand.splice(cardIndex, 1);
         lobby.discardPile.push(card);
-        player.saidUno = false; // Reset for next time
+        player.saidUno = false;
 
         if (penalty) {
             refillDeck(lobby);
             player.hand.push(lobby.deck.pop(), lobby.deck.pop());
             io.to(code).emit('message', `🔔 ${player.name} forgot UNO! (+2 cards)`);
         }
-        // ---------------------------
 
         lobby.currentColor = (card.color === 'Black') ? chosenColor : card.color;
 
@@ -196,7 +194,7 @@ io.on('connection', (socket) => {
         updateGameState(code);
     });
 
-    // 5. DRAW CARD
+    // 5. DRAW CARD (FIXED WITH 3s TIMER)
     socket.on('drawCard', (code) => {
         const lobby = lobbies[code];
         if(!lobby || !lobby.gameRunning) return;
@@ -204,6 +202,7 @@ io.on('connection', (socket) => {
 
         const player = lobby.players.find(p => p.id === socket.id);
 
+        // A. STACKING PENALTY (Take all cards immediately)
         if (lobby.drawPenalty > 0) {
             for(let i=0; i<lobby.drawPenalty; i++) {
                 if(lobby.deck.length === 0) refillDeck(lobby);
@@ -217,13 +216,39 @@ io.on('connection', (socket) => {
             return;
         }
 
+        // B. NORMAL DRAW
         if(lobby.deck.length === 0) refillDeck(lobby);
         const newCard = lobby.deck.pop();
         player.hand.push(newCard);
         io.to(player.id).emit('yourHand', player.hand);
-        
-        advanceTurn(lobby);
-        updateGameState(code);
+
+        // --- CHECK IF PLAYABLE (THE FIX) ---
+        const top = lobby.discardPile[lobby.discardPile.length - 1];
+        const isPlayable = (newCard.color === lobby.currentColor) || 
+                           (newCard.value === top.value) || 
+                           (newCard.color === 'Black');
+
+        if (isPlayable) {
+            // 1. Tell user they have 3s
+            socket.emit('message', "Playable! Drop it in 3s!");
+            io.to(code).emit('timerStart', 3); // Start 3s visual timer for everyone
+
+            // 2. Start Server Timer
+            if(lobby.turnTimer) clearTimeout(lobby.turnTimer);
+            lobby.turnTimer = setTimeout(() => {
+                io.to(code).emit('message', `${player.name} hesitated! Next turn.`);
+                advanceTurn(lobby);
+                updateGameState(code);
+            }, 3000); // 3000ms = 3 Seconds
+
+            // 3. Update state (show card) but DO NOT ADVANCE TURN yet
+            updateGameState(code);
+        } else {
+            // Not playable? Pass immediately.
+            socket.emit('message', "No luck. Next turn.");
+            advanceTurn(lobby);
+            updateGameState(code);
+        }
     });
 
     // 6. SAY UNO
@@ -270,13 +295,14 @@ function refillDeck(lobby) {
         lobby.discardPile = [top];
         shuffle(lobby.deck);
     } else if (lobby.deck.length === 0) {
-        // Emergency deck logic if everything is gone
         lobby.deck = createDeck();
         shuffle(lobby.deck);
     }
 }
 
 function advanceTurn(lobby, skips=0) {
+    if(lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; } // Safety Clear
+    
     let steps = 1 + skips;
     let active = lobby.players.filter(p => !p.finished);
     if (active.length === 0) return;
