@@ -1,13 +1,21 @@
 {
   "name": "UNO Battle Royale",
-  "short_name": "UNO",
-  "start_url": "/index.html",
+  "short_name": "UNO Battle",
+  "description": "Multiplayer UNO Battle Royale with Casino Style interface",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#1f1f1f",
-  "theme_color": "#ff0000",
+  "background_color": "#8b0000",
+  "theme_color": "#8b0000",
+  "orientation": "landscape",
+  "scope": "/",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/2883/2883833.png",
+      "src": "https://cdn-icons-png.flaticon.com/512/1023/1023458.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1023/1023458.png",
       "sizes": "512x512",
       "type": "image/png"
     }
