@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="casino.css">
 
     <style>
-        /* --- LAYOUT FIXES --- */
+        /* --- DEFAULT LAYOUT (PORTRAIT) --- */
         #menu-screen, #lobby-waiting {
             display: flex; flex-direction: column !important; align-items: center; justify-content: center; gap: 20px;
             width: 90%; max-width: 400px; padding: 30px; margin: auto; text-align: center;
@@ -19,7 +19,7 @@
             font-size: 22px; color: black; font-weight: bold; border-radius: 8px; border: none; outline: none;
         }
 
-        /* --- PLAYER SIDEBAR --- */
+        /* --- PLAYER SIDEBAR (DEFAULT) --- */
         #game-sidebar {
             position: absolute;
             left: 0;
@@ -35,7 +35,7 @@
             overflow-y: auto;
             border-right: 1px solid rgba(255, 255, 255, 0.2);
             z-index: 50;
-            pointer-events: none; /* Allows clicking through empty space */
+            pointer-events: none; 
         }
         
         .sidebar-item {
@@ -45,7 +45,7 @@
             font-size: 12px;
             color: white;
             text-align: left;
-            pointer-events: auto; /* Keeps the items interactive */
+            pointer-events: auto; 
         }
         .sidebar-item.active-turn {
             background: rgba(255, 215, 0, 0.3);
@@ -65,7 +65,7 @@
         .gold { border: 2px solid gold; color: gold; }
 
         /* ============================================================
-           MOBILE LANDSCAPE FIXES (UPDATED STRONG VERSION)
+           MOBILE LANDSCAPE MODE (Activates when phone is sideways)
            ============================================================ */
         @media (max-height: 600px) and (orientation: landscape) {
 
@@ -74,7 +74,7 @@
                 position: absolute !important;
                 top: 50% !important;
                 left: 50% !important;
-                transform: translate(-50%, -50%) scale(0.6) !important; /* Perfect scaling */
+                transform: translate(-50%, -50%) scale(0.6) !important;
                 width: auto !important;
                 height: auto !important;
                 z-index: 10 !important;
@@ -82,17 +82,17 @@
 
             /* 2. HAND CONTAINER (Pinned Fixed to Bottom) */
             .hand-container {
-                position: fixed !important; /* Critical for stability */
+                position: fixed !important; 
                 bottom: 0 !important;
                 left: 0 !important;
                 width: 100% !important;
-                height: 70px !important; /* Strict short height */
+                height: 70px !important; 
                 padding: 0 !important;
                 margin: 0 !important;
                 justify-content: center !important;
                 align-items: flex-end !important;
                 z-index: 100 !important;
-                background: rgba(0,0,0,0.2) !important; /* Optional visual guide */
+                background: rgba(0,0,0,0.2) !important; 
             }
 
             /* 3. CARDS IN HAND ONLY (Small & Overlapping) */
@@ -100,7 +100,7 @@
                 width: 45px !important;
                 height: 65px !important;
                 background-size: contain !important;
-                margin: 0 -12px 5px -12px !important; /* Tight overlap */
+                margin: 0 -12px 5px -12px !important;
                 flex-shrink: 0 !important;
             }
 
@@ -132,10 +132,6 @@
         <h1 style="font-size: 32px; margin: 0;">UNO BATTLE</h1>
         <h3 id="welcome-msg" style="margin-top: 5px; opacity: 0.8;">Welcome...</h3>
         
-        <button onclick="goFullscreen()" style="background: transparent; border: 1px solid white; color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; margin-bottom: 10px;">
-            ⛶ GO FULLSCREEN
-        </button>
-
         <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.3); margin: 10px 0;"></div>
         <button class="btn-success" onclick="createLobby()" style="width: 100%; font-size: 18px;">CREATE LOBBY</button>
         <p style="margin: 5px 0; opacity: 0.6;">- OR -</p>
@@ -208,18 +204,6 @@
         let pendingCardIndex = null;
         let myLobbyCode = null; 
         let countdownInterval = null;
-
-        // --- NEW: FULLSCREEN LOGIC ---
-        function goFullscreen() {
-            const doc = document.documentElement;
-            if (doc.requestFullscreen) {
-                doc.requestFullscreen().then(() => {
-                    if (screen.orientation && screen.orientation.lock) {
-                        screen.orientation.lock('landscape').catch(err => console.log(err));
-                    }
-                }).catch(err => console.log(err));
-            }
-        }
 
         function createLobby() { socket.emit('createLobby', username); }
         function joinLobby() {
