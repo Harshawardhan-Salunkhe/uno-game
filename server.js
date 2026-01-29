@@ -11,7 +11,7 @@ const io = new Server(server);
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- PERSISTENCE (Users) ---
+// --- PERSISTENCE ---
 const USERS_FILE = path.join(__dirname, 'users.json');
 function getUsers() {
     if (!fs.existsSync(USERS_FILE)) return [];
@@ -40,11 +40,10 @@ app.post('/api/login', (req, res) => {
 });
 
 // ==========================================================
-//  MULTI-LOBBY SYSTEM (THE NEW CORE)
+//  MULTI-LOBBY SYSTEM
 // ==========================================================
-const lobbies = {}; // Stores all active game rooms. Key = Room Code
+const lobbies = {}; 
 
-// --- HELPER: Generate Code ---
 function generateLobbyCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
@@ -52,7 +51,6 @@ function generateLobbyCode() {
     return result;
 }
 
-// --- HELPER: Deck Creation ---
 function createDeck() {
     let deck = [];
     const colors = ['Red', 'Blue', 'Green', 'Yellow'];
@@ -67,7 +65,7 @@ function shuffle(deck) { for (let i = deck.length - 1; i > 0; i--) { const j = M
 io.on('connection', (socket) => {
     console.log('Connected:', socket.id);
 
-    // 1. CREATE LOBBY
+    // 1. CREATE
     socket.on('createLobby', (username) => {
         const code = generateLobbyCode();
         lobbies[code] = {
@@ -82,29 +80,27 @@ io.on('connection', (socket) => {
             currentColor: '',
             turnTimer: null
         };
-        
-        socket.join(code); // Socket.io Room feature
+        socket.join(code);
         socket.emit('lobbyCreated', code);
         io.to(code).emit('updatePlayerList', lobbies[code].players);
     });
 
-    // 2. JOIN LOBBY
+    // 2. JOIN
     socket.on('joinLobby', ({ code, username }) => {
         const lobby = lobbies[code];
         if (!lobby) return socket.emit('error', 'Lobby not found!');
         if (lobby.gameRunning) return socket.emit('error', 'Game already started!');
+        
+        // Prevent duplicate names
         if (lobby.players.find(p => p.name === username)) return socket.emit('error', 'Name taken!');
 
         lobby.players.push({ id: socket.id, name: username, hand: [], finished: false, saidUno: false });
         socket.join(code);
-        
-        // Notify user they joined successfully
         socket.emit('joinedLobby', code);
-        // Update everyone in the room
         io.to(code).emit('updatePlayerList', lobby.players);
     });
 
-    // 3. START GAME
+    // 3. START
     socket.on('startGame', (code) => {
         const lobby = lobbies[code];
         if (!lobby || lobby.players.length < 2) return;
@@ -138,7 +134,7 @@ io.on('connection', (socket) => {
         if(!lobby || !lobby.gameRunning) return;
         
         const player = lobby.players.find(p => p.id === socket.id);
-        if (lobby.players[lobby.turnIndex].id !== socket.id) return;
+        if (!player || lobby.players[lobby.turnIndex].id !== socket.id) return;
 
         const card = player.hand[cardIndex];
         const top = lobby.discardPile[lobby.discardPile.length - 1];
@@ -154,16 +150,26 @@ io.on('connection', (socket) => {
 
         if (!isValid) return;
 
-        // Clear Timer
-        if(lobby.turnTimer) { clearTimeout(lobby.turnTimer); lobby.turnTimer = null; }
+        // --- UNO LOGIC FIXED HERE ---
+        let penalty = false;
+        // If they are about to have 1 card (length 2 now -> 1 after play) AND didn't say UNO
+        if (player.hand.length === 2 && !player.saidUno) {
+            penalty = true;
+        }
 
         player.hand.splice(cardIndex, 1);
         lobby.discardPile.push(card);
-        
-        // Handle Color
+        player.saidUno = false; // Reset for next time
+
+        if (penalty) {
+            refillDeck(lobby);
+            player.hand.push(lobby.deck.pop(), lobby.deck.pop());
+            io.to(code).emit('message', `🔔 ${player.name} forgot UNO! (+2 cards)`);
+        }
+        // ---------------------------
+
         lobby.currentColor = (card.color === 'Black') ? chosenColor : card.color;
 
-        // Handle Effects
         let skip = 0;
         if (card.value === 'Reverse') {
             lobby.direction *= -1;
@@ -173,7 +179,6 @@ io.on('connection', (socket) => {
         else if (card.value === 'Draw2') lobby.drawPenalty += 2;
         else if (card.value.includes('Draw4')) lobby.drawPenalty += 4;
 
-        // WIN CONDITION
         if (player.hand.length === 0) {
             player.finished = true;
             const winners = lobby.players.filter(p => p.finished);
@@ -182,7 +187,7 @@ io.on('connection', (socket) => {
             if (lobby.players.filter(p => !p.finished).length <= 1) {
                 lobby.gameRunning = false;
                 io.to(code).emit('gameOver', winners);
-                delete lobbies[code]; // Cleanup lobby after game
+                delete lobbies[code];
                 return;
             }
         }
@@ -194,15 +199,17 @@ io.on('connection', (socket) => {
     // 5. DRAW CARD
     socket.on('drawCard', (code) => {
         const lobby = lobbies[code];
-        if(!lobby || lobby.players[lobby.turnIndex].id !== socket.id) return;
+        if(!lobby || !lobby.gameRunning) return;
+        if(lobby.players[lobby.turnIndex].id !== socket.id) return;
+
         const player = lobby.players.find(p => p.id === socket.id);
 
-        // PENALTY DRAW
         if (lobby.drawPenalty > 0) {
             for(let i=0; i<lobby.drawPenalty; i++) {
                 if(lobby.deck.length === 0) refillDeck(lobby);
                 player.hand.push(lobby.deck.pop());
             }
+            io.to(code).emit('message', `💥 ${player.name} took +${lobby.drawPenalty} cards!`);
             lobby.drawPenalty = 0;
             io.to(player.id).emit('yourHand', player.hand);
             advanceTurn(lobby);
@@ -210,31 +217,38 @@ io.on('connection', (socket) => {
             return;
         }
 
-        // NORMAL DRAW
         if(lobby.deck.length === 0) refillDeck(lobby);
         const newCard = lobby.deck.pop();
         player.hand.push(newCard);
         io.to(player.id).emit('yourHand', player.hand);
         
-        advanceTurn(lobby); // Simple rule: Draw passes turn immediately
+        advanceTurn(lobby);
         updateGameState(code);
     });
 
-    // 6. DISCONNECT & CLEANUP
+    // 6. SAY UNO
+    socket.on('sayUno', (code) => {
+        const lobby = lobbies[code];
+        if(!lobby) return;
+        const player = lobby.players.find(p => p.id === socket.id);
+        if (player && player.hand.length === 2) {
+            player.saidUno = true;
+            io.to(code).emit('message', `🔔 ${player.name} shouted UNO!`);
+        }
+    });
+
+    // 7. DISCONNECT
     socket.on('disconnect', () => {
-        // Find which lobby this socket belongs to
-        let foundCode = null;
         for (const [code, lobby] of Object.entries(lobbies)) {
             const pIndex = lobby.players.findIndex(p => p.id === socket.id);
             if (pIndex !== -1) {
-                foundCode = code;
                 const player = lobby.players[pIndex];
                 const wasTurn = (pIndex === lobby.turnIndex);
                 
                 lobby.players.splice(pIndex, 1);
                 
                 if (lobby.players.length === 0) {
-                    delete lobbies[code]; // Delete empty lobby
+                    delete lobbies[code];
                 } else {
                     if (pIndex < lobby.turnIndex) lobby.turnIndex--;
                     if (wasTurn) advanceTurn(lobby, 0);
@@ -249,12 +263,15 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- UTILS ---
 function refillDeck(lobby) {
     if (lobby.discardPile.length > 1) {
         let top = lobby.discardPile.pop();
         lobby.deck = lobby.discardPile;
         lobby.discardPile = [top];
+        shuffle(lobby.deck);
+    } else if (lobby.deck.length === 0) {
+        // Emergency deck logic if everything is gone
+        lobby.deck = createDeck();
         shuffle(lobby.deck);
     }
 }
@@ -279,8 +296,6 @@ function updateGameState(code) {
         currentColor: lobby.currentColor,
         currentPlayer: lobby.players[lobby.turnIndex].id,
         direction: lobby.direction > 0 ? "CW" : "CCW",
-        
-        // --- NEW ADDITION: This sends the names & card counts ---
         playerInfo: lobby.players.map(p => ({ 
             name: p.name, 
             cards: p.hand.length, 
@@ -293,4 +308,3 @@ function updateGameState(code) {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
