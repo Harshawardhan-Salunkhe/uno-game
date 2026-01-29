@@ -1,23 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
     <title>UNO BATTLE ROYALE</title>
+    
+    <link rel="manifest" href="manifest.json">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="casino.css">
+
+    <meta name="theme-color" content="#8b0000">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="UNO Battle">
+    <link rel="icon" sizes="192x192" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
+    <link rel="icon" sizes="512x512" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
+
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="UNO Battle">
-    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
 
-<meta name="application-name" content="UNO Battle">
-
-<link rel="icon" sizes="192x192" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
-<link rel="icon" sizes="512x512" href="https://cdn-icons-png.flaticon.com/512/1023/1023458.png">
-
-    <meta name="theme-color" content="#8b0000">
     <style>
         /* New Styles for Leaderboard */
         #leaderboard-modal {
@@ -55,11 +58,13 @@
         </div>
 
         <div class="center-table">
-            <div class="card Black" onclick="socket.emit('drawCard')" style="border: 2px dashed gray;">
-                <span style="font-size:14px;">DRAW</span>
+            <div class="card" onclick="socket.emit('drawCard')" 
+                 style="background-image: url('https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/UNO_Logo.svg/1200px-UNO_Logo.svg.png'); background-size: contain; background-repeat: no-repeat; background-position: center; border: 2px dashed rgba(255,255,255,0.3);">
             </div>
-            <div id="top-card" class="card">?</div>
-            <div id="active-color-dot" style="width:30px; height:30px; border-radius:50%; background:gray; border:2px solid white;"></div>
+            
+            <div id="top-card" class="card"></div>
+            
+            <div id="active-color-dot" style="width:30px; height:30px; border-radius:50%; background:gray; border:2px solid white; box-shadow: 0 0 10px black;"></div>
         </div>
 
         <div class="hand-container" id="my-hand"></div>
@@ -87,11 +92,13 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="animations.js"></script>
     <script>
+        // --- 1. PWA SERVICE WORKER REGISTRATION ---
         if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js')
-            .then(() => console.log('Service Worker Registered'))
-            .catch(err => console.log('SW Failed:', err));
-    }
+            navigator.serviceWorker.register('/sw.js')
+                .then(() => console.log('Service Worker Registered'))
+                .catch(err => console.log('SW Failed:', err));
+        }
+
         const username = localStorage.getItem('unoUser');
         if (!username) window.location.href = 'login.html';
         document.getElementById('welcome-msg').innerText = "Player: " + username;
@@ -106,7 +113,6 @@
         function startGame() { socket.emit('startGame'); }
         function logout() { localStorage.removeItem('unoUser'); window.location.href = 'login.html'; }
         
-        // NEW: End Game Options
         function playAgain() { 
             document.getElementById('leaderboard-modal').style.display = 'none';
             socket.emit('playAgain'); 
@@ -129,7 +135,8 @@
             document.getElementById('color-modal').style.display = 'none';
         }
 
-        // EVENTS
+        // --- EVENTS ---
+
         socket.on('updatePlayerList', (players) => {
             document.getElementById('p-list').innerHTML = players.map(p => `
                 <div style="padding:5px; border-bottom:1px solid #444; display:flex; justify-content:space-between;">
@@ -139,7 +146,6 @@
         });
 
         socket.on('message', (msg) => {
-            // Using alert for errors/warnings to be very visible
             if(msg.includes('STRICT') || msg.includes('shouted')) alert(msg);
             else console.log(msg);
         });
@@ -165,16 +171,16 @@
         socket.on('gameState', (state) => {
             const topCard = state.topCard;
             
-            // We use a global variable to remember the last card so we don't animate the same one twice
+            // Animation Check
             if (window.lastAnimatedCard !== topCard.color + topCard.value) {
-                window.lastAnimatedCard = topCard.color + topCard.value; // Remember this card
+                window.lastAnimatedCard = topCard.color + topCard.value; 
 
-                // 2. Trigger animation based on card type
-                if (topCard.value === 'draw4') playAnimation('DRAW_4');
-                else if (topCard.value === 'draw2') playAnimation('DRAW_2');
-                else if (topCard.value === 'reverse') playAnimation('REVERSE');
-                else if (topCard.value === 'skip') playAnimation('SKIP');
-                else if (topCard.color === 'wild' && topCard.value !== 'draw4') playAnimation('WILD');
+                // Note: Checking strictly for your specific values (adjust if needed)
+                if (topCard.value.includes('Draw4')) playAnimation('DRAW_4');
+                else if (topCard.value === 'Draw2') playAnimation('DRAW_2');
+                else if (topCard.value === 'Reverse') playAnimation('REVERSE');
+                else if (topCard.value === 'Skip') playAnimation('SKIP');
+                else if (topCard.color === 'Black' && !topCard.value.includes('Draw4')) playAnimation('WILD');
             }
                 
             if(countdownInterval) { clearInterval(countdownInterval); document.getElementById('countdown').innerText = ""; }
@@ -187,15 +193,23 @@
             document.getElementById('turn-text').style.color = isMe ? "#38ef7d" : "white";
             document.getElementById('direction-text').innerText = state.direction;
 
-            // Highlight UNO Button if it's my turn
+            // Highlight UNO Button
             const unoBtn = document.getElementById('uno-btn');
             unoBtn.style.boxShadow = isMe ? "0 0 15px red" : "none";
             unoBtn.style.transform = isMe ? "scale(1.1)" : "scale(1)";
 
+            // --- 2. UPDATED TOP CARD (IMAGE LOGIC) ---
             const topDiv = document.getElementById('top-card');
-            topDiv.className = `card ${state.topCard.color}`;
-            topDiv.innerText = state.topCard.value;
             
+            // Construct Filename: Red_7.png or Black_WildDraw4.png
+            // Uses underscore (_) as requested
+            let fileName = `${state.topCard.color}_${state.topCard.value.replace(' ', '')}.png`;
+            
+            topDiv.style.backgroundImage = `url('cards/${fileName}')`;
+            topDiv.innerText = ""; // Remove text
+            topDiv.className = "card"; // Reset class
+            
+            // Update Active Color Dot
             const dotColor = state.currentColor === 'Black' ? 'gray' : 
                              (state.currentColor === 'Blue' ? '#5555ff' : 
                              (state.currentColor === 'Red' ? '#ff5555' : 
@@ -208,8 +222,14 @@
             div.innerHTML = "";
             hand.forEach((card, index) => {
                 const el = document.createElement('div');
-                el.className = `card ${card.color}`;
-                el.innerText = card.value;
+                el.className = 'card';
+                
+                // --- 3. UPDATED HAND CARDS (IMAGE LOGIC) ---
+                // Construct Filename: Red_7.png or Black_WildDraw4.png
+                let fileName = `${card.color}_${card.value.replace(' ', '')}.png`;
+                
+                el.style.backgroundImage = `url('cards/${fileName}')`;
+                
                 el.onclick = () => attemptPlay(index, card);
                 div.appendChild(el);
             });
@@ -238,10 +258,4 @@
         });
     </script>
 </body>
-
 </html>
-
-
-
-
-
