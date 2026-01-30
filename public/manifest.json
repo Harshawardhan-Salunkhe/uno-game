@@ -4,6 +4,7 @@
   "description": "Multiplayer UNO Battle Royale with Casino Style interface",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
   "background_color": "#8b0000",
   "theme_color": "#8b0000",
   "orientation": "landscape",
@@ -21,3 +22,4 @@
     }
   ]
 }
+
