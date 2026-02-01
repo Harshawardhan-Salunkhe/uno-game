@@ -11,7 +11,7 @@
   "scope": "/",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/1023/1023458.png",
+      "src": "uno icon.png",
       "sizes": "192x192",
       "type": "image/png"
     },
@@ -22,5 +22,6 @@
     }
   ]
 }
+
 
 
